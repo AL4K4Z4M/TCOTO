@@ -446,13 +446,6 @@
 </head>
 <body>
 
-    <!-- Debug Button -->
-    <div style="position: absolute; top: 0; left: 0; z-index: 99999; pointer-events: auto;">
-        <button onclick="document.body.classList.toggle('debug-mode')" class="bg-gray-800 text-xs text-gray-400 hover:text-white px-2 py-1 rounded-br opacity-50 hover:opacity-100 transition">
-            Debug
-        </button>
-    </div>
-
     <!-- MAIN DESKTOP AREA -->
     <div id="coto-desktop">
 
@@ -629,6 +622,7 @@
                         <div class="grid grid-cols-2 gap-3 mt-3">
                             <button class="py-2 rounded bg-white hover:bg-slate-50 border border-slate-200 text-xs font-bold text-slate-600 shadow-sm transition">Reset Scene</button>
                             <button class="py-2 rounded bg-white hover:bg-slate-50 border border-slate-200 text-xs font-bold text-slate-600 shadow-sm transition">Clear Cache</button>
+                            <button onclick="toggleDebugMenu(true)" class="col-span-2 py-2 rounded bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold text-slate-600 shadow-sm transition">Debug Menu</button>
                         </div>
                     </div>
 
@@ -700,6 +694,60 @@
 
     </div>
 
+    <!-- DEBUG MENU MODAL -->
+    <div id="debug-menu-overlay" class="hidden fixed inset-0 bg-black/80 z-[30000] flex items-center justify-center pointer-events-auto">
+        <div class="bg-white rounded-xl w-[900px] h-[700px] flex flex-col overflow-hidden shadow-2xl relative">
+            <!-- Header -->
+            <div class="bg-slate-100 p-4 border-b flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">🐞</span>
+                    <div>
+                        <h2 class="font-bold text-lg text-slate-800">Debug Menu</h2>
+                        <p class="text-xs text-slate-500">Streamer.bot Inspector</p>
+                    </div>
+                </div>
+                <button onclick="toggleDebugMenu(false)" class="text-slate-400 hover:text-red-500 font-bold transition p-2">✕ CLOSE</button>
+            </div>
+
+            <!-- Settings Toolbar -->
+            <div class="bg-slate-50 p-3 border-b flex items-center gap-6">
+                <!-- Visual Debug Toggle -->
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                    <div class="relative">
+                        <input type="checkbox" id="debug-visual-toggle" class="sr-only" onchange="toggleVisualDebug(this)">
+                        <div class="w-10 h-6 bg-slate-200 rounded-full shadow-inner transition-colors duration-200 ease-in-out peer-checked:bg-green-500"></div>
+                        <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ease-in-out transform peer-checked:translate-x-4"></div>
+                    </div>
+                    <span class="text-sm font-bold text-slate-600">Visual Borders</span>
+                </label>
+
+                <div class="h-6 w-px bg-slate-300"></div>
+
+                <div class="flex gap-2">
+                    <button onclick="clearDebugLog()" class="px-3 py-1.5 text-xs font-bold bg-white border border-slate-300 rounded hover:bg-slate-100 text-slate-600 transition">Clear Log</button>
+                    <!-- Status Indicator -->
+                    <div class="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 text-xs font-bold rounded border border-green-200">
+                        <span class="relative flex h-2 w-2">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        Listening
+                    </div>
+                </div>
+            </div>
+
+            <!-- Log Container -->
+            <div id="debug-log-container" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 font-mono text-xs text-slate-300">
+                <div class="text-center text-slate-600 italic py-10 select-none">Waiting for events...</div>
+            </div>
+
+            <!-- Footer -->
+            <div class="bg-slate-100 p-2 text-[10px] text-slate-400 text-center border-t">
+                TCOTO Debugger v1.0
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- CONFIGURATION ---
         const OVERLAYS = [
@@ -715,7 +763,11 @@
             host: '127.0.0.1',
             port: 8080,
             endpoint: '/',
-            autoReconnect: true
+            autoReconnect: true,
+            onData: (data) => {
+                // Forward to debug handler
+                if (window.handleDebugData) window.handleDebugData(data);
+            }
         });
 
         let sessionFollows = 0;
@@ -1052,12 +1104,26 @@
             const cols = document.querySelectorAll('.draggable-item');
             cols.forEach(col => {
                 col.classList.remove('bg-blue-50');
+                col.style.borderTop = "";
+                col.style.borderBottom = "";
             });
         }
 
         function handleDragOver(e) {
             if (e.preventDefault) e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
+
+            // Visual feedback for insertion point
+            const bounding = this.getBoundingClientRect();
+            const offset = bounding.y + (bounding.height / 2);
+            if (e.clientY > offset) {
+                this.style.borderBottom = "2px solid #0093ED";
+                this.style.borderTop = "";
+            } else {
+                this.style.borderTop = "2px solid #0093ED";
+                this.style.borderBottom = "";
+            }
+
             return false;
         }
 
@@ -1067,6 +1133,8 @@
 
         function handleDragLeave(e) {
             this.classList.remove('bg-blue-50');
+            this.style.borderTop = "";
+            this.style.borderBottom = "";
         }
 
         function handleDrop(e) {
@@ -1075,15 +1143,26 @@
             const dragIdx = parseInt(dragSrcEl.dataset.index);
             let dropIdx = parseInt(this.dataset.index);
 
+            // Calculate insertion point (Before or After)
+            const bounding = this.getBoundingClientRect();
+            const offset = bounding.y + (bounding.height / 2);
+            const insertAfter = (e.clientY > offset);
+
             if (dragSrcEl !== this) {
-                // Fix Logic: If moving down, target index shifts after removal
-                // We want to insert "Before" the target element.
+                // Remove item first
+                const item = statModules.splice(dragIdx, 1)[0];
+
+                // Adjust drop index based on removal shifting
+                // If dragging from above (dragIdx < dropIdx), indices shift down by 1.
                 if (dragIdx < dropIdx) {
                     dropIdx--;
                 }
 
-                // Move item in array
-                const item = statModules.splice(dragIdx, 1)[0];
+                // If inserting AFTER, increment index
+                if (insertAfter) {
+                    dropIdx++;
+                }
+
                 statModules.splice(dropIdx, 0, item);
 
                 // Re-render
@@ -1257,6 +1336,89 @@
                 loadedApps[targetId] = true;
                 console.log(`TCOTO: Loading ${targetId}...`);
             }
+        }
+
+        // --- DEBUG MENU FUNCTIONS ---
+        function toggleDebugMenu(show) {
+            const modal = document.getElementById('debug-menu-overlay');
+            if (show) modal.classList.remove('hidden');
+            else modal.classList.add('hidden');
+        }
+
+        function toggleVisualDebug(input) {
+            if (input.checked) document.body.classList.add('debug-mode');
+            else document.body.classList.remove('debug-mode');
+        }
+
+        function clearDebugLog() {
+            const container = document.getElementById('debug-log-container');
+            container.innerHTML = '<div class="text-center text-slate-600 italic py-10 select-none">Log Cleared</div>';
+        }
+
+        function handleDebugData(data) {
+            const container = document.getElementById('debug-log-container');
+
+            // Remove "Empty" message if present
+            if (container.querySelector('.italic')) {
+                container.innerHTML = '';
+            }
+
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+
+            let source = "Unknown";
+            let eventType = "Data";
+
+            if (data.event && data.event.source) source = data.event.source;
+            if (data.event && data.event.type) eventType = data.event.type;
+
+            // Generate Entry ID
+            const entryId = 'log-' + now.getTime() + '-' + Math.floor(Math.random() * 1000);
+
+            const entry = document.createElement('div');
+            entry.className = "bg-slate-800 border border-slate-700 rounded p-2 shadow-sm relative group hover:border-blue-500 transition-colors";
+
+            // Safe Header Creation
+            const header = document.createElement('div');
+            header.className = "flex justify-between items-center mb-1 pb-1 border-b border-slate-700";
+            header.innerHTML = `
+                <div class="flex gap-2">
+                    <span class="text-blue-400 font-bold">[${timeStr}]</span>
+                    <span class="text-green-400 font-bold">${source}</span>
+                    <span class="text-white">${eventType}</span>
+                </div>
+                <button onclick="copyLogEntry('${entryId}')" class="opacity-0 group-hover:opacity-100 transition bg-blue-600 hover:bg-blue-500 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                    Copy JSON
+                </button>
+            `;
+
+            // Safe JSON Content Creation (Prevents XSS)
+            const pre = document.createElement('pre');
+            pre.id = entryId;
+            pre.className = "text-[10px] text-slate-400 whitespace-pre-wrap break-words overflow-hidden max-h-[200px] hover:max-h-none transition-all duration-300 custom-scrollbar";
+            pre.textContent = JSON.stringify(data, null, 2);
+
+            entry.appendChild(header);
+            entry.appendChild(pre);
+
+            // Prepend or Append? Append makes most sense for a log, scrolling down.
+            container.appendChild(entry);
+            // Auto scroll
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function copyLogEntry(elementId) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            const text = el.innerText;
+
+            navigator.clipboard.writeText(text).then(() => {
+                // Visual feedback?
+                // Just console for now, maybe toast later.
+                console.log("Copied to clipboard");
+            }).catch(err => {
+                console.error("Failed to copy", err);
+            });
         }
     </script>
 </body>
