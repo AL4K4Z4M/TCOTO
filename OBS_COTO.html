@@ -923,6 +923,7 @@
         // --- MAIN INITIALIZATION ---
         window.addEventListener('load', () => {
             console.log("TCOTO: Initializing...");
+            loadSettings(); // Load from LocalStorage
             initSidebar();
             renderStatSettings();
             updateStatBarOrder(); // Ensure DOM matches initial JS order
@@ -932,6 +933,71 @@
                 if (audioCtx.state === 'suspended') audioCtx.resume();
             }, { once: true });
         });
+
+        // --- PERSISTENCE ---
+        function saveSettings() {
+            const settings = {
+                statModules: statModules,
+                statScale: document.getElementById('stat-scale').value,
+                alertDuration: document.getElementById('alert-duration').value,
+                masterStats: document.getElementById('toggle-master-stats').checked,
+                masterAlerts: document.getElementById('toggle-master-alerts').checked,
+                alerts: {
+                    follow: document.getElementById('alert-follow').checked,
+                    sub: document.getElementById('alert-sub').checked,
+                    cheer: document.getElementById('alert-cheer').checked,
+                    raid: document.getElementById('alert-raid').checked
+                }
+            };
+            localStorage.setItem('tcoto_settings', JSON.stringify(settings));
+        }
+
+        function loadSettings() {
+            const stored = localStorage.getItem('tcoto_settings');
+            if (!stored) return;
+
+            try {
+                const settings = JSON.parse(stored);
+
+                // Load Stat Modules (Merge to preserve new modules if any)
+                if (settings.statModules) {
+                    statModules = settings.statModules;
+                }
+
+                // Load Scale
+                if (settings.statScale) {
+                    document.getElementById('stat-scale').value = settings.statScale;
+                    updateStatScale(settings.statScale); // Apply visuals
+                }
+
+                // Load Alert Duration
+                if (settings.alertDuration) {
+                    document.getElementById('alert-duration').value = settings.alertDuration;
+                    document.getElementById('alert-duration-display').innerText = settings.alertDuration + 's';
+                }
+
+                // Load Master Toggles
+                if (settings.masterStats !== undefined) {
+                    document.getElementById('toggle-master-stats').checked = settings.masterStats;
+                    toggleMasterStats(); // Apply visuals
+                }
+                if (settings.masterAlerts !== undefined) {
+                    document.getElementById('toggle-master-alerts').checked = settings.masterAlerts;
+                    toggleMasterAlerts(); // Apply visuals
+                }
+
+                // Load Alert Toggles
+                if (settings.alerts) {
+                    if (settings.alerts.follow !== undefined) document.getElementById('alert-follow').checked = settings.alerts.follow;
+                    if (settings.alerts.sub !== undefined) document.getElementById('alert-sub').checked = settings.alerts.sub;
+                    if (settings.alerts.cheer !== undefined) document.getElementById('alert-cheer').checked = settings.alerts.cheer;
+                    if (settings.alerts.raid !== undefined) document.getElementById('alert-raid').checked = settings.alerts.raid;
+                }
+
+            } catch (e) {
+                console.error("Failed to load settings", e);
+            }
+        }
 
         function renderStatSettings() {
             const listContainer = document.getElementById('stats-sortable-list');
@@ -945,6 +1011,7 @@
 
                 // Drag Events
                 row.addEventListener('dragstart', handleDragStart);
+                row.addEventListener('dragend', handleDragEnd);
                 row.addEventListener('dragover', handleDragOver);
                 row.addEventListener('drop', handleDrop);
                 row.addEventListener('dragenter', handleDragEnter);
@@ -974,7 +1041,18 @@
             dragSrcEl = this;
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', this.dataset.index);
-            this.style.opacity = '0.4';
+            // Delay adding style so the ghost image is full opacity
+            setTimeout(() => {
+                this.style.opacity = '0.4';
+            }, 0);
+        }
+
+        function handleDragEnd(e) {
+            this.style.opacity = '1';
+            const cols = document.querySelectorAll('.draggable-item');
+            cols.forEach(col => {
+                col.classList.remove('bg-blue-50');
+            });
         }
 
         function handleDragOver(e) {
@@ -995,9 +1073,15 @@
             if (e.stopPropagation) e.stopPropagation();
 
             const dragIdx = parseInt(dragSrcEl.dataset.index);
-            const dropIdx = parseInt(this.dataset.index);
+            let dropIdx = parseInt(this.dataset.index);
 
             if (dragSrcEl !== this) {
+                // Fix Logic: If moving down, target index shifts after removal
+                // We want to insert "Before" the target element.
+                if (dragIdx < dropIdx) {
+                    dropIdx--;
+                }
+
                 // Move item in array
                 const item = statModules.splice(dragIdx, 1)[0];
                 statModules.splice(dropIdx, 0, item);
@@ -1005,15 +1089,8 @@
                 // Re-render
                 renderStatSettings();
                 updateStatBarOrder();
+                saveSettings();
             }
-
-            // Cleanup styles
-            const cols = document.querySelectorAll('.draggable-item');
-            cols.forEach(col => {
-                col.classList.remove('bg-blue-50');
-                col.style.opacity = '1';
-            });
-
             return false;
         }
 
@@ -1038,6 +1115,7 @@
             document.getElementById('stat-scale-display').innerText = val + 'x';
             // Important: Maintain centering transform
             bar.style.transform = `translateX(-50%) scale(${val})`;
+            saveSettings();
         }
 
         function initSidebar() {
@@ -1092,6 +1170,7 @@
                     toggleMasterStats();
                 }
             }
+            saveSettings();
         }
 
         function toggleMasterStats() {
@@ -1136,6 +1215,7 @@
                 options.style.opacity = '0';
                 options.style.marginTop = '-10px';
             }
+            saveSettings();
         }
 
         function toggleMasterAlerts() {
@@ -1151,6 +1231,7 @@
                 options.style.opacity = '0';
                 options.style.marginTop = '-10px';
             }
+            saveSettings();
         }
 
         function launchApp(targetId) {
