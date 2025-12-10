@@ -1399,8 +1399,11 @@
             if (typeLower.includes('subaction') || srcLower.includes('action')) {
                 return 'subaction';
             }
-            // Triggers (Platforms)
+            // Triggers (Platforms & Core)
             if (['twitch', 'youtube', 'trovo', 'kick', 'streamelements', 'donor drive', 'tipeeestream', 'obs', 'slobs'].some(k => srcLower.includes(k))) {
+                return 'trigger';
+            }
+            if (typeLower.includes('globalvariable')) {
                 return 'trigger';
             }
 
