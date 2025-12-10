@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TCOTO - Master Directory</title>
-    
+
     <!-- Fonts: Poppins -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <!-- Google Fonts: Barlow (For Alerts matching Ballpit) -->
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@600;800&display=swap" rel="stylesheet">
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -102,18 +102,20 @@
             position: absolute;
             top: 20px;
             left: 50%;
-            transform: translateX(-50%);
+            /* Scale handled by JS, default centered */
+            transform: translateX(-50%) scale(1);
+            transform-origin: top center;
             display: flex;
             gap: 15px;
             padding: 8px 12px;
             border-radius: 50px;
-            
+
             /* Glass Look matches main menu */
             background: rgba(255, 255, 255, 0.65);
             backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.8);
             box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            
+
             z-index: 9000;
             pointer-events: auto;
             transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
@@ -155,19 +157,19 @@
             transform: translate(-50%, -50%) scale(0.95); /* Start slightly smaller */
             z-index: 10000;
             pointer-events: none; /* Wrapper passes clicks, Panel catches them */
-            
+
             /* Visibility managed via JS classes on this wrapper */
             opacity: 0;
             visibility: hidden;
             transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        
+
         #main-menu-wrapper.active {
             opacity: 1;
             visibility: visible;
             transform: translate(-50%, -50%) scale(1); /* Pop in effect */
         }
-        
+
         /* The Spinning Gradient Background (Border) */
         #main-menu-wrapper::before {
             content: "";
@@ -175,7 +177,7 @@
             top: -5px; left: -5px; right: -5px; bottom: -5px;
             border-radius: 28px;
             background: conic-gradient(
-                from 0deg, 
+                from 0deg,
                 #D00000, #FF5600, #FFEA00, #05FF74, #0093ED, #5FFFFF, #75B8DD, #D00000
             );
             z-index: -1;
@@ -189,7 +191,7 @@
             top: 10px; left: 10px; right: 10px; bottom: 10px;
             border-radius: 28px;
             background: conic-gradient(
-                from 0deg, 
+                from 0deg,
                 #D00000, #FF5600, #FFEA00, #05FF74, #0093ED, #5FFFFF, #75B8DD, #D00000
             );
             filter: blur(40px);
@@ -216,7 +218,7 @@
             pointer-events: auto;
             display: flex;
             flex-direction: column;
-            overflow: hidden; 
+            overflow: hidden;
         }
 
         /* Header Styling */
@@ -275,14 +277,14 @@
             border-bottom: 1px solid rgba(0,0,0,0.05);
         }
         .toggle-row:last-child { border-bottom: none; }
-        
+
         .toggle-switch {
             position: relative;
             width: 44px;
             height: 24px;
         }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        
+
         .slider {
             position: absolute;
             cursor: pointer;
@@ -303,7 +305,7 @@
             border-radius: 50%;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        
+
         input:checked + .slider {
             background: linear-gradient(90deg, #05FF74, #0093ED);
         }
@@ -365,7 +367,7 @@
         #coto-sidebar-container:hover #sidebar-content {
             box-shadow: 10px 0 40px rgba(0,0,0,0.2);
         }
-        
+
         #sidebar-content {
             width: 100%;
             height: 100%;
@@ -444,16 +446,9 @@
 </head>
 <body>
 
-    <!-- Debug Button -->
-    <div style="position: absolute; top: 0; left: 0; z-index: 99999; pointer-events: auto;">
-        <button onclick="document.body.classList.toggle('debug-mode')" class="bg-gray-800 text-xs text-gray-400 hover:text-white px-2 py-1 rounded-br opacity-50 hover:opacity-100 transition">
-            Debug
-        </button>
-    </div>
-
     <!-- MAIN DESKTOP AREA -->
     <div id="coto-desktop">
-        
+
         <!-- ALERT POPUP (Hidden by default) -->
         <div id="notification-popup">
             <svg id="popup-frame" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" viewBox="0 0 1920 1080">
@@ -501,6 +496,12 @@
                 <span class="stat-label">Last Cheer:</span>
                 <span id="val-last-cheer" class="stat-value">None</span>
             </div>
+            <!-- 5. Viewer Count -->
+            <div id="stat-viewer-count" class="stat-item">
+                <span class="stat-icon">👁️</span>
+                <span class="stat-label">Viewers:</span>
+                <span id="val-viewer-count" class="stat-value">0</span>
+            </div>
         </div>
 
         <!-- 1. DYNAMIC FRAMES LAYER -->
@@ -508,13 +509,13 @@
 
         <!-- 2. MAIN MENU / SETTINGS PANEL -->
         <div id="main-menu-wrapper" class="active">
-            <div id="main-menu-panel"> 
-                
+            <div id="main-menu-panel">
+
                 <!-- Glass Header -->
                 <div class="glass-header px-10 py-6 flex justify-between items-center">
                     <div>
-                        <h1 class="text-5xl font-black tcoto-brand uppercase italic tracking-tighter">TCOTO</h1>
-                        <p class="text-[11px] text-slate-500 font-bold uppercase tracking-[0.4em] mt-1 pl-1">Control Center</p>
+                        <h1 class="text-5xl font-black tcoto-brand uppercase italic tracking-tighter pr-2">TCOTO</h1>
+                        <p class="text-[11px] text-slate-500 font-bold uppercase tracking-[0.4em] mt-1 pl-1">The Child of Toledo Overlay</p>
                     </div>
                     <button onclick="toggleSettings(false)" class="group flex items-center gap-3 px-6 py-2 rounded-full bg-white border border-slate-200 hover:bg-slate-50 transition shadow-sm">
                         <span class="text-xs font-bold text-slate-400 group-hover:text-slate-600 uppercase tracking-wider">Minimize</span>
@@ -524,7 +525,7 @@
 
                 <!-- Content Grid -->
                 <div class="settings-grid flex-grow">
-                    
+
                     <!-- 1. STAT BAR WIDGETS -->
                     <div class="setting-card col-span-1">
                         <div class="flex items-center justify-between mb-4">
@@ -545,27 +546,23 @@
                         <!-- COLLAPSIBLE SETTINGS CONTAINER -->
                         <div id="stats-sub-options" class="space-y-1 transition-all duration-300 overflow-hidden" style="max-height: 500px; opacity: 1;">
                             <div class="h-px bg-slate-200 my-2"></div>
-                            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">Visible Widgets</p>
-                            
-                            <div class="toggle-row">
-                                <span class="text-sm font-bold text-slate-600">Session Followers</span>
-                                <label class="toggle-switch"><input type="checkbox" class="stat-toggle-input" data-target="stat-followers-session" checked onchange="toggleStat('stat-followers-session')"><span class="slider"></span></label>
+
+                            <div class="px-1 mb-3">
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-xs font-bold text-slate-500 uppercase">Scale</span>
+                                    <span id="stat-scale-display" class="text-xs font-bold text-blue-500">1.0x</span>
+                                </div>
+                                <input type="range" id="stat-scale" min="0.5" max="1.5" step="0.1" value="1.0"
+                                    class="w-full h-1 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                    oninput="updateStatScale(this.value)">
                             </div>
-                            <div class="toggle-row">
-                                <span class="text-sm font-bold text-slate-600">Last Follower</span>
-                                <label class="toggle-switch"><input type="checkbox" class="stat-toggle-input" data-target="stat-last-follower" checked onchange="toggleStat('stat-last-follower')"><span class="slider"></span></label>
-                            </div>
-                            <div class="toggle-row">
-                                <span class="text-sm font-bold text-slate-600">Last Subscriber</span>
-                                <label class="toggle-switch"><input type="checkbox" class="stat-toggle-input" data-target="stat-last-sub" checked onchange="toggleStat('stat-last-sub')"><span class="slider"></span></label>
-                            </div>
-                             <div class="toggle-row">
-                                <span class="text-sm font-bold text-slate-600">Last Cheer</span>
-                                <label class="toggle-switch"><input type="checkbox" class="stat-toggle-input" data-target="stat-last-cheer" checked onchange="toggleStat('stat-last-cheer')"><span class="slider"></span></label>
-                            </div>
-                        </div>
+
+                            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">Widgets (Drag to Reorder)</p>
+
+                            <!-- Dynamic List Container -->
+                            <div id="stats-sortable-list"></div></div>
                     </div>
-                    
+
                     <!-- 2. ALERT BOX WIDGETS -->
                     <div class="setting-card col-span-1">
                         <div class="flex items-center justify-between mb-4">
@@ -576,7 +573,7 @@
                                     <p class="text-xs text-slate-500">Screen Popups</p>
                                 </div>
                             </div>
-                            
+
                             <div class="flex items-center gap-3">
                                 <button onclick="testAlert()" class="text-[10px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-600 px-3 py-1 rounded transition">TEST</button>
                                 <!-- MASTER ALERT TOGGLE -->
@@ -590,19 +587,19 @@
                         <!-- COLLAPSIBLE SETTINGS CONTAINER -->
                         <div id="alerts-sub-options" class="space-y-1 transition-all duration-300 overflow-hidden" style="max-height: 500px; opacity: 1;">
                             <div class="h-px bg-slate-200 my-2"></div>
-                            
+
                             <div class="px-1 mb-3">
                                 <div class="flex justify-between mb-1">
                                     <span class="text-xs font-bold text-slate-500 uppercase">Alert Duration</span>
-                                    <span id="alert-duration-display" class="text-xs font-bold text-blue-500">6s</span>
+                                    <span id="alert-duration-display" class="text-xs font-bold text-blue-500">2s</span>
                                 </div>
-                                <input type="range" id="alert-duration" min="0.5" max="10" step="0.5" value="6" 
+                                <input type="range" id="alert-duration" min="0.5" max="10" step="0.5" value="2"
                                     class="w-full h-1 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-500"
                                     oninput="document.getElementById('alert-duration-display').innerText = this.value + 's'">
                             </div>
 
                             <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">Enabled Events</p>
-                            
+
                             <div class="toggle-row">
                                 <span class="text-sm font-bold text-slate-600">New Follower</span>
                                 <label class="toggle-switch"><input type="checkbox" id="alert-follow" checked><span class="slider"></span></label>
@@ -631,6 +628,7 @@
                         <div class="grid grid-cols-2 gap-3 mt-3">
                             <button class="py-2 rounded bg-white hover:bg-slate-50 border border-slate-200 text-xs font-bold text-slate-600 shadow-sm transition">Reset Scene</button>
                             <button class="py-2 rounded bg-white hover:bg-slate-50 border border-slate-200 text-xs font-bold text-slate-600 shadow-sm transition">Clear Cache</button>
+                            <button onclick="toggleDebugMenu(true)" class="col-span-2 py-2 rounded bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold text-slate-600 shadow-sm transition">Debug Menu</button>
                         </div>
                     </div>
 
@@ -661,7 +659,7 @@
 
         <!-- 3. SIDEBAR DRAWER -->
         <div id="coto-sidebar-container">
-            <div id="sidebar-trigger-tab"></div> 
+            <div id="sidebar-trigger-tab"></div>
 
             <div id="sidebar-content">
                 <!-- Branding -->
@@ -676,7 +674,7 @@
                     <div class="app-icon-visual">🏠</div>
                     <span class="app-label">Main Menu</span>
                 </div>
-                
+
                 <div class="h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent my-4 mx-2"></div>
 
                 <!-- DYNAMIC BUTTONS WILL BE INJECTED HERE -->
@@ -690,7 +688,7 @@
                     <div class="app-icon-visual" style="color: #FF5600;">↻</div>
                     <span class="app-label text-sm text-slate-400 group-hover:text-slate-600">Reload</span>
                 </div>
-                
+
                 <!-- Sidebar Footer Credit -->
                 <div class="mt-4 text-center">
                     <a href="https://www.twitch.tv/thechildoftoledo" target="_blank" class="text-[9px] text-slate-400 hover:text-blue-500 uppercase font-bold tracking-widest transition">
@@ -702,11 +700,92 @@
 
     </div>
 
+    <!-- DEBUG MENU MODAL -->
+    <div id="debug-menu-overlay" class="hidden fixed inset-0 bg-black/80 z-[30000] flex items-center justify-center pointer-events-auto">
+        <div class="bg-white rounded-xl w-[900px] h-[700px] flex flex-col overflow-hidden shadow-2xl relative">
+            <!-- Header -->
+            <div class="bg-slate-100 p-4 border-b flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">🐞</span>
+                    <div>
+                        <h2 class="font-bold text-lg text-slate-800">Debug Menu</h2>
+                        <p class="text-xs text-slate-500">Streamer.bot Inspector</p>
+                    </div>
+                </div>
+                <button onclick="toggleDebugMenu(false)" class="text-slate-400 hover:text-red-500 font-bold transition p-2">✕ CLOSE</button>
+            </div>
+
+            <!-- Settings Toolbar -->
+            <div class="bg-slate-50 p-3 border-b flex items-center gap-6">
+                <!-- Visual Debug Toggle -->
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                    <div class="relative">
+                        <input type="checkbox" id="debug-visual-toggle" class="sr-only" onchange="toggleVisualDebug(this)">
+                        <div class="w-10 h-6 bg-slate-200 rounded-full shadow-inner transition-colors duration-200 ease-in-out peer-checked:bg-green-500"></div>
+                        <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ease-in-out transform peer-checked:translate-x-4"></div>
+                    </div>
+                    <span class="text-sm font-bold text-slate-600">Visual Borders</span>
+                </label>
+
+                <div class="h-6 w-px bg-slate-300"></div>
+
+                <div class="flex gap-2">
+                    <button onclick="clearDebugLog()" class="px-3 py-1.5 text-xs font-bold bg-white border border-slate-300 rounded hover:bg-slate-100 text-slate-600 transition">Clear Log</button>
+                    <!-- Status Indicator -->
+                    <div class="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 text-xs font-bold rounded border border-green-200">
+                        <span class="relative flex h-2 w-2">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        Listening
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Toolbar -->
+            <div class="bg-slate-100 px-3 py-2 border-b flex items-center gap-3 text-xs overflow-x-auto">
+                <div class="relative flex-grow max-w-[200px]">
+                    <span class="absolute left-2 top-1.5 text-slate-400">🔍</span>
+                    <input type="text" id="debug-filter-search" oninput="filterDebugLog()" placeholder="Search..." class="w-full pl-7 pr-2 py-1 rounded border border-slate-300 focus:border-blue-500 focus:outline-none text-slate-600 placeholder:text-slate-400">
+                </div>
+
+                <div class="h-4 w-px bg-slate-300 mx-1"></div>
+
+                <label class="flex items-center gap-1.5 cursor-pointer select-none px-2 py-1 rounded hover:bg-slate-200 transition">
+                    <input type="checkbox" class="accent-blue-500 filter-checkbox" value="trigger" checked onchange="filterDebugLog()">
+                    <span class="font-bold text-slate-600">Triggers</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer select-none px-2 py-1 rounded hover:bg-slate-200 transition">
+                    <input type="checkbox" class="accent-purple-500 filter-checkbox" value="input" checked onchange="filterDebugLog()">
+                    <span class="font-bold text-slate-600">Inputs</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer select-none px-2 py-1 rounded hover:bg-slate-200 transition">
+                    <input type="checkbox" class="accent-yellow-500 filter-checkbox" value="subaction" checked onchange="filterDebugLog()">
+                    <span class="font-bold text-slate-600">SubActions</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer select-none px-2 py-1 rounded hover:bg-slate-200 transition">
+                    <input type="checkbox" class="accent-gray-500 filter-checkbox" value="other" checked onchange="filterDebugLog()">
+                    <span class="font-bold text-slate-600">Other</span>
+                </label>
+            </div>
+
+            <!-- Log Container -->
+            <div id="debug-log-container" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 font-mono text-xs text-slate-300">
+                <div class="text-center text-slate-600 italic py-10 select-none">Waiting for events...</div>
+            </div>
+
+            <!-- Footer -->
+            <div class="bg-slate-100 p-2 text-[10px] text-slate-400 text-center border-t">
+                TCOTO Debugger v1.0
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- CONFIGURATION ---
         const OVERLAYS = [
-            { id: 'tetris',  name: 'Tetris',  icon: '🧩', file: 'tetris.html' },
-            { id: 'ballpit', name: 'Ballpit', icon: '🎱', file: 'ballpit.html' },
+            { id: 'tetris',  name: 'Tetris',  icon: '🧩', file: 'pages/tetris.html' },
+            { id: 'ballpit', name: 'Ballpit', icon: '🎱', file: 'pages/ballpit.html' },
         ];
 
         // Internal State
@@ -717,17 +796,32 @@
             host: '127.0.0.1',
             port: 8080,
             endpoint: '/',
-            autoReconnect: true
+            autoReconnect: true,
+            subscribe: '*', // Subscribe to ALL events for Debugger
+            onData: (data) => {
+                // Forward to debug handler
+                if (window.handleDebugData) window.handleDebugData(data);
+            }
         });
 
         let sessionFollows = 0;
 
+        // --- STAT MODULES CONFIG ---
+        // Order and visibility state
+        let statModules = [
+            { id: 'stat-followers-session', label: 'Session Followers', enabled: true },
+            { id: 'stat-last-follower', label: 'Last Follower', enabled: true },
+            { id: 'stat-last-sub', label: 'Last Subscriber', enabled: true },
+            { id: 'stat-last-cheer', label: 'Last Cheer', enabled: true },
+            { id: 'stat-viewer-count', label: 'Viewer Count', enabled: true }
+        ];
+
         // HELPER FUNCTIONS FROM REFERENCE
         function getSafeData(payload) { return payload.data ? payload.data : payload; }
-        
+
         function getName(payload) {
             const d = getSafeData(payload);
-            
+
             // 1. Strings at top level
             if (typeof d.user === 'string') return d.user;
             if (d.user_name) return d.user_name;
@@ -735,9 +829,9 @@
             if (d.displayName) return d.displayName;
             if (d.userName) return d.userName;
             if (d.name) return d.name;
-            if (d.raider) return d.raider; 
-            
-            // 2. EventSub specific 
+            if (d.raider) return d.raider;
+
+            // 2. EventSub specific
             if (d.from_broadcaster_user_name) return d.from_broadcaster_user_name;
             if (d.from_broadcaster_user_login) return d.from_broadcaster_user_login;
 
@@ -746,14 +840,14 @@
                 if (d.user.name) return d.user.name;
                 if (d.user.display_name) return d.user.display_name;
                 if (d.user.displayName) return d.user.displayName;
-                if (d.user.login) return d.user.login; 
+                if (d.user.login) return d.user.login;
             }
             if (d.sender && typeof d.sender === 'object') {
                  if (d.sender.name) return d.sender.name;
                  if (d.sender.display_name) return d.sender.display_name;
             }
-            
-            return "User"; 
+
+            return "User";
         }
 
         function getTierFromPayload(payload) {
@@ -769,19 +863,19 @@
         // --- ALERT SYSTEM ---
         const notificationQueue = [];
         let isNotifying = false;
-        
+
         // Audio Synthesizer (No file needed)
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
+
         function playDing() {
             if (audioCtx.state === 'suspended') audioCtx.resume();
             const now = audioCtx.currentTime;
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1); 
+            osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
             gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
             osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now); osc.stop(now + 1.5);
-            
+
             const sparkle = audioCtx.createOscillator(); const sGain = audioCtx.createGain();
             sparkle.type = 'triangle'; sparkle.frequency.setValueAtTime(2000, now);
             sGain.gain.setValueAtTime(0.05, now); sGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
@@ -796,7 +890,7 @@
             notificationQueue.push({ title, message });
             processQueue();
         }
-        
+
         function testAlert() {
             showNotification("TEST ALERT", "This is a test.");
         }
@@ -810,7 +904,7 @@
             const popupEl = document.getElementById('notification-popup');
             const popupTitle = document.getElementById('notify-title');
             const popupMsg = document.getElementById('notify-message');
-            
+
             // Get Duration from slider
             const durationInput = document.getElementById('alert-duration');
             const durationSec = durationInput ? parseFloat(durationInput.value) : 6;
@@ -822,10 +916,10 @@
 
             popupEl.classList.remove('animate-pop');
             void popupEl.offsetWidth; // Trigger reflow
-            
+
             // Set dynamic animation duration
             popupEl.style.animationDuration = `${durationSec}s`;
-            
+
             popupEl.classList.add('animate-pop');
 
             // Wait for animation
@@ -838,7 +932,8 @@
         // EVENT HANDLERS
         client.on('Connect', () => {
             console.log('TCOTO: Connected to Streamer.bot');
-            client.subscribe({ "Twitch": ["Follow", "Cheer", "Subscribe", "ReSubscribe", "GiftSubscription", "Subscription", "GiftSub", "Sub", "Raid"] });
+            // client.subscribe(...) removed because 'subscribe: "*"' in config handles everything.
+
             // Fetch Initial Total Follower Count
             client.request('GetBroadcaster', {}).then(resp => {
                 const count = resp.followerCount || resp.follower_count || resp.followercount || resp.totalFollowers || 0;
@@ -852,7 +947,7 @@
             const name = getName(payload);
             updateText('val-session-follows', `+${sessionFollows}`);
             updateText('val-last-follow', name);
-            
+
             // Trigger Alert if enabled
             if (document.getElementById('alert-follow').checked) {
                 showNotification("NEW FOLLOWER", name);
@@ -903,7 +998,7 @@
         // 4. RAIDS
         client.on('Twitch.Raid', (payload) => {
             const d = getSafeData(payload);
-            const raider = getName(payload); 
+            const raider = getName(payload);
             const viewers = d.viewers || 0;
             console.log("Raid Event Data:", payload); // Log for debugging
 
@@ -913,16 +1008,237 @@
             }
         });
 
+        // 5. VIEWER COUNT
+        client.on('Twitch.ViewerCountUpdate', (payload) => {
+            const d = getSafeData(payload);
+            const count = d.viewerCount || 0;
+            updateText('val-viewer-count', count);
+        });
+
         // --- MAIN INITIALIZATION ---
         window.addEventListener('load', () => {
             console.log("TCOTO: Initializing...");
+            loadSettings(); // Load from LocalStorage
             initSidebar();
-            
+            renderStatSettings();
+            updateStatBarOrder(); // Ensure DOM matches initial JS order
+
             // Init audio context on interaction
             document.body.addEventListener('click', () => {
                 if (audioCtx.state === 'suspended') audioCtx.resume();
             }, { once: true });
         });
+
+        // --- PERSISTENCE ---
+        function saveSettings() {
+            const settings = {
+                statModules: statModules,
+                statScale: document.getElementById('stat-scale').value,
+                alertDuration: document.getElementById('alert-duration').value,
+                masterStats: document.getElementById('toggle-master-stats').checked,
+                masterAlerts: document.getElementById('toggle-master-alerts').checked,
+                alerts: {
+                    follow: document.getElementById('alert-follow').checked,
+                    sub: document.getElementById('alert-sub').checked,
+                    cheer: document.getElementById('alert-cheer').checked,
+                    raid: document.getElementById('alert-raid').checked
+                }
+            };
+            localStorage.setItem('tcoto_settings', JSON.stringify(settings));
+        }
+
+        function loadSettings() {
+            const stored = localStorage.getItem('tcoto_settings');
+            if (!stored) return;
+
+            try {
+                const settings = JSON.parse(stored);
+
+                // Load Stat Modules (Merge to preserve new modules if any)
+                if (settings.statModules) {
+                    statModules = settings.statModules;
+                }
+
+                // Load Scale
+                if (settings.statScale) {
+                    document.getElementById('stat-scale').value = settings.statScale;
+                    updateStatScale(settings.statScale); // Apply visuals
+                }
+
+                // Load Alert Duration
+                if (settings.alertDuration) {
+                    document.getElementById('alert-duration').value = settings.alertDuration;
+                    document.getElementById('alert-duration-display').innerText = settings.alertDuration + 's';
+                }
+
+                // Load Master Toggles
+                if (settings.masterStats !== undefined) {
+                    document.getElementById('toggle-master-stats').checked = settings.masterStats;
+                    toggleMasterStats(); // Apply visuals
+                }
+                if (settings.masterAlerts !== undefined) {
+                    document.getElementById('toggle-master-alerts').checked = settings.masterAlerts;
+                    toggleMasterAlerts(); // Apply visuals
+                }
+
+                // Load Alert Toggles
+                if (settings.alerts) {
+                    if (settings.alerts.follow !== undefined) document.getElementById('alert-follow').checked = settings.alerts.follow;
+                    if (settings.alerts.sub !== undefined) document.getElementById('alert-sub').checked = settings.alerts.sub;
+                    if (settings.alerts.cheer !== undefined) document.getElementById('alert-cheer').checked = settings.alerts.cheer;
+                    if (settings.alerts.raid !== undefined) document.getElementById('alert-raid').checked = settings.alerts.raid;
+                }
+
+            } catch (e) {
+                console.error("Failed to load settings", e);
+            }
+        }
+
+        function renderStatSettings() {
+            const listContainer = document.getElementById('stats-sortable-list');
+            listContainer.innerHTML = '';
+
+            statModules.forEach((mod, index) => {
+                const row = document.createElement('div');
+                row.className = 'toggle-row draggable-item';
+                row.draggable = true;
+                row.dataset.index = index;
+
+                // Drag Events
+                row.addEventListener('dragstart', handleDragStart);
+                row.addEventListener('dragend', handleDragEnd);
+                row.addEventListener('dragover', handleDragOver);
+                row.addEventListener('drop', handleDrop);
+                row.addEventListener('dragenter', handleDragEnter);
+                row.addEventListener('dragleave', handleDragLeave);
+
+                row.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="cursor-grab text-slate-400 hover:text-slate-600">☰</span>
+                        <span class="text-sm font-bold text-slate-600 select-none">${mod.label}</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" class="stat-toggle-input"
+                               data-target="${mod.id}"
+                               ${mod.enabled ? 'checked' : ''}
+                               onchange="toggleStat('${mod.id}', this)">
+                        <span class="slider"></span>
+                    </label>
+                `;
+                listContainer.appendChild(row);
+            });
+        }
+
+        // --- DRAG AND DROP LOGIC ---
+        let dragSrcEl = null;
+
+        function handleDragStart(e) {
+            dragSrcEl = this;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', this.dataset.index);
+            // Delay adding style so the ghost image is full opacity
+            setTimeout(() => {
+                this.style.opacity = '0.4';
+            }, 0);
+        }
+
+        function handleDragEnd(e) {
+            this.style.opacity = '1';
+            const cols = document.querySelectorAll('.draggable-item');
+            cols.forEach(col => {
+                col.classList.remove('bg-blue-50');
+                col.style.borderTop = "";
+                col.style.borderBottom = "";
+            });
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+
+            // Visual feedback for insertion point
+            const bounding = this.getBoundingClientRect();
+            const offset = bounding.y + (bounding.height / 2);
+            if (e.clientY > offset) {
+                this.style.borderBottom = "2px solid #0093ED";
+                this.style.borderTop = "";
+            } else {
+                this.style.borderTop = "2px solid #0093ED";
+                this.style.borderBottom = "";
+            }
+
+            return false;
+        }
+
+        function handleDragEnter(e) {
+            this.classList.add('bg-blue-50');
+        }
+
+        function handleDragLeave(e) {
+            this.classList.remove('bg-blue-50');
+            this.style.borderTop = "";
+            this.style.borderBottom = "";
+        }
+
+        function handleDrop(e) {
+            if (e.stopPropagation) e.stopPropagation();
+
+            const dragIdx = parseInt(dragSrcEl.dataset.index);
+            let dropIdx = parseInt(this.dataset.index);
+
+            // Calculate insertion point (Before or After)
+            const bounding = this.getBoundingClientRect();
+            const offset = bounding.y + (bounding.height / 2);
+            const insertAfter = (e.clientY > offset);
+
+            if (dragSrcEl !== this) {
+                // Remove item first
+                const item = statModules.splice(dragIdx, 1)[0];
+
+                // Adjust drop index based on removal shifting
+                // If dragging from above (dragIdx < dropIdx), indices shift down by 1.
+                if (dragIdx < dropIdx) {
+                    dropIdx--;
+                }
+
+                // If inserting AFTER, increment index
+                if (insertAfter) {
+                    dropIdx++;
+                }
+
+                statModules.splice(dropIdx, 0, item);
+
+                // Re-render
+                renderStatSettings();
+                updateStatBarOrder();
+                saveSettings();
+            }
+            return false;
+        }
+
+        function updateStatBarOrder() {
+            const bar = document.getElementById('top-stat-bar');
+            // We need to keep the elements but reorder them.
+            // Best way: detach all known modules and re-append in order.
+
+            statModules.forEach(mod => {
+                const el = document.getElementById(mod.id);
+                if (el) {
+                    bar.appendChild(el); // Appending an existing child moves it
+                    // Ensure visibility matches state
+                    if (mod.enabled) el.classList.remove('hidden-stat');
+                    else el.classList.add('hidden-stat');
+                }
+            });
+        }
+
+        function updateStatScale(val) {
+            const bar = document.getElementById('top-stat-bar');
+            document.getElementById('stat-scale-display').innerText = val + 'x';
+            // Important: Maintain centering transform
+            bar.style.transform = `translateX(-50%) scale(${val})`;
+            saveSettings();
+        }
 
         function initSidebar() {
             const frameLayer = document.getElementById('dynamic-frames-layer');
@@ -953,28 +1269,40 @@
             if (show) wrapper.classList.add('active');
             else wrapper.classList.remove('active');
         }
-        
-        function toggleStat(elementId) {
-            const el = document.getElementById(elementId);
-            if(el) el.classList.toggle('hidden-stat');
 
-            // Auto-hide logic
-            const inputs = document.querySelectorAll('.stat-toggle-input');
-            const isAnyChecked = Array.from(inputs).some(input => input.checked);
-            
+        function toggleStat(elementId, inputEl) {
+            // Update Array State
+            const mod = statModules.find(m => m.id === elementId);
+            if (mod && inputEl) mod.enabled = inputEl.checked;
+
+            // Update DOM
+            const el = document.getElementById(elementId);
+            if(el) {
+                if (mod.enabled) el.classList.remove('hidden-stat');
+                else el.classList.add('hidden-stat');
+            }
+
+            // Auto-hide logic for master toggle
+            const isAnyChecked = statModules.some(m => m.enabled);
+
             if (!isAnyChecked) {
                 const master = document.getElementById('toggle-master-stats');
                 if (master.checked) {
                     master.checked = false;
-                    toggleMasterStats(); 
+                    toggleMasterStats();
                 }
             }
+            saveSettings();
         }
 
         function toggleMasterStats() {
             const isChecked = document.getElementById('toggle-master-stats').checked;
             const bar = document.getElementById('top-stat-bar');
             const options = document.getElementById('stats-sub-options');
+
+            // Get current scale to preserve it
+            const scaleInput = document.getElementById('stat-scale');
+            const currentScale = scaleInput ? scaleInput.value : '1.0';
 
             if (isChecked) {
                 const inputs = document.querySelectorAll('.stat-toggle-input');
@@ -983,6 +1311,12 @@
                     inputs.forEach(input => {
                         input.checked = true;
                         const targetId = input.getAttribute('data-target');
+
+                        // Sync State
+                        const mod = statModules.find(m => m.id === targetId);
+                        if (mod) mod.enabled = true;
+
+                        // Sync DOM
                         if (targetId) {
                             const el = document.getElementById(targetId);
                             if (el) el.classList.remove('hidden-stat');
@@ -990,25 +1324,26 @@
                     });
                 }
                 bar.style.opacity = '1';
-                bar.style.transform = 'translateX(-50%) translateY(0)';
+                bar.style.transform = `translateX(-50%) scale(${currentScale}) translateY(0)`;
                 bar.style.pointerEvents = 'auto';
                 options.style.maxHeight = '500px';
                 options.style.opacity = '1';
                 options.style.marginTop = '0';
             } else {
                 bar.style.opacity = '0';
-                bar.style.transform = 'translateX(-50%) translateY(-20px)';
+                bar.style.transform = `translateX(-50%) scale(${currentScale}) translateY(-20px)`;
                 bar.style.pointerEvents = 'none';
                 options.style.maxHeight = '0px';
                 options.style.opacity = '0';
                 options.style.marginTop = '-10px';
             }
+            saveSettings();
         }
 
         function toggleMasterAlerts() {
             const isChecked = document.getElementById('toggle-master-alerts').checked;
             const options = document.getElementById('alerts-sub-options');
-            
+
             if (isChecked) {
                 options.style.maxHeight = '500px';
                 options.style.opacity = '1';
@@ -1018,6 +1353,7 @@
                 options.style.opacity = '0';
                 options.style.marginTop = '-10px';
             }
+            saveSettings();
         }
 
         function launchApp(targetId) {
@@ -1026,7 +1362,7 @@
 
             const targetFrame = document.getElementById(`frame-${targetId}`);
             const targetBtn = document.getElementById(`btn-${targetId}`);
-            
+
             toggleSettings(false);
 
             OVERLAYS.forEach(app => {
@@ -1043,6 +1379,185 @@
                 loadedApps[targetId] = true;
                 console.log(`TCOTO: Loading ${targetId}...`);
             }
+        }
+
+        // --- DEBUG MENU FUNCTIONS ---
+        function toggleDebugMenu(show) {
+            const modal = document.getElementById('debug-menu-overlay');
+            if (show) modal.classList.remove('hidden');
+            else modal.classList.add('hidden');
+        }
+
+        function toggleVisualDebug(input) {
+            if (input.checked) document.body.classList.add('debug-mode');
+            else document.body.classList.remove('debug-mode');
+        }
+
+        function clearDebugLog() {
+            const container = document.getElementById('debug-log-container');
+            container.innerHTML = '<div class="text-center text-slate-600 italic py-10 select-none">Log Cleared</div>';
+        }
+
+        function categorizeEvent(data) {
+            const source = (data.event && data.event.source) ? data.event.source : "";
+            const type = (data.event && data.event.type) ? data.event.type : "";
+
+            const srcLower = source.toLowerCase();
+            const typeLower = type.toLowerCase();
+
+            // Inputs
+            if (['command', 'hotkey', 'voicecontrol', 'streamdeck', 'midi', 'keyboard', 'input', 'speechtotext'].some(k => srcLower.includes(k))) {
+                return 'input';
+            }
+            // Subactions
+            if (typeLower.includes('subaction') || srcLower.includes('action')) {
+                return 'subaction';
+            }
+            // Triggers (Platforms & Core)
+            if (['twitch', 'youtube', 'trovo', 'kick', 'streamelements', 'donor drive', 'tipeeestream', 'obs', 'slobs'].some(k => srcLower.includes(k))) {
+                return 'trigger';
+            }
+            if (typeLower.includes('globalvariable')) {
+                return 'trigger';
+            }
+
+            return 'other';
+        }
+
+        function handleDebugData(data) {
+            const container = document.getElementById('debug-log-container');
+
+            // Remove "Empty" message if present
+            if (container.querySelector('.italic')) {
+                container.innerHTML = '';
+            }
+
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+
+            let source = "Unknown";
+            let eventType = "Data";
+
+            if (data.event && data.event.source) source = data.event.source;
+            if (data.event && data.event.type) eventType = data.event.type;
+
+            const category = categorizeEvent(data);
+            const entryId = 'log-' + now.getTime() + '-' + Math.floor(Math.random() * 1000);
+            const jsonText = JSON.stringify(data, null, 2);
+
+            const entry = document.createElement('div');
+            entry.className = "bg-slate-800 border border-slate-700 rounded p-2 shadow-sm relative group hover:border-blue-500 transition-colors debug-entry";
+            entry.dataset.category = category;
+            entry.dataset.searchText = (source + " " + eventType + " " + jsonText).toLowerCase();
+
+            // Check filters immediately
+            if (!isEntryVisible(entry)) {
+                entry.classList.add('hidden');
+            }
+
+            // Safe Header Creation
+            const header = document.createElement('div');
+            header.className = "flex justify-between items-center mb-1 pb-1 border-b border-slate-700";
+
+            // Badge Color based on Category
+            let badgeClass = "text-slate-400";
+            if (category === 'trigger') badgeClass = "text-blue-400";
+            if (category === 'input') badgeClass = "text-purple-400";
+            if (category === 'subaction') badgeClass = "text-yellow-400";
+
+            header.innerHTML = `
+                <div class="flex gap-2">
+                    <span class="text-slate-500 font-mono">[${timeStr}]</span>
+                    <span class="${badgeClass} font-bold uppercase text-[10px] tracking-wider border border-current px-1 rounded">${category}</span>
+                    <span class="text-green-400 font-bold">${source}</span>
+                    <span class="text-white">${eventType}</span>
+                </div>
+                <button onclick="copyLogEntry('${entryId}')" class="opacity-0 group-hover:opacity-100 transition bg-blue-600 hover:bg-blue-500 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                    Copy JSON
+                </button>
+            `;
+
+            // Safe JSON Content Creation (Prevents XSS)
+            const pre = document.createElement('pre');
+            pre.id = entryId;
+            pre.className = "text-[10px] text-slate-400 whitespace-pre-wrap break-words overflow-hidden max-h-[200px] hover:max-h-none transition-all duration-300 custom-scrollbar mt-1";
+            pre.textContent = jsonText;
+
+            entry.appendChild(header);
+            entry.appendChild(pre);
+
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function isEntryVisible(entry) {
+            const category = entry.dataset.category;
+            const searchText = entry.dataset.searchText;
+
+            // Check Checkboxes
+            const checkboxes = document.querySelectorAll('.filter-checkbox');
+            const enabledCategories = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+
+            if (!enabledCategories.includes(category)) return false;
+
+            // Check Search Text
+            const query = document.getElementById('debug-filter-search').value.toLowerCase();
+            if (query && !searchText.includes(query)) return false;
+
+            return true;
+        }
+
+        function filterDebugLog() {
+            const entries = document.querySelectorAll('.debug-entry');
+            entries.forEach(entry => {
+                if (isEntryVisible(entry)) {
+                    entry.classList.remove('hidden');
+                } else {
+                    entry.classList.add('hidden');
+                }
+            });
+        }
+
+        function copyLogEntry(elementId) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            const text = el.innerText;
+
+            // Try Async Clipboard API first (Secure Contexts)
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    console.log("Copied to clipboard via API");
+                }).catch(err => {
+                    console.warn("Clipboard API failed, trying fallback...", err);
+                    fallbackCopyText(text);
+                });
+            } else {
+                fallbackCopyText(text);
+            }
+        }
+
+        function fallbackCopyText(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+
+            // Ensure it's not visible but part of DOM
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "0";
+            document.body.appendChild(textArea);
+
+            textArea.focus();
+            textArea.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                const msg = successful ? 'successful' : 'unsuccessful';
+                console.log('Fallback copy was ' + msg);
+            } catch (err) {
+                console.error('Fallback copy failed', err);
+            }
+
+            document.body.removeChild(textArea);
         }
     </script>
 </body>
