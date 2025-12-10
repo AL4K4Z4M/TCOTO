@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TCOTO - Master Directory</title>
-    
+
     <!-- Fonts: Poppins -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <!-- Google Fonts: Barlow (For Alerts matching Ballpit) -->
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@600;800&display=swap" rel="stylesheet">
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -102,18 +102,20 @@
             position: absolute;
             top: 20px;
             left: 50%;
-            transform: translateX(-50%);
+            /* Scale handled by JS, default centered */
+            transform: translateX(-50%) scale(1);
+            transform-origin: top center;
             display: flex;
             gap: 15px;
             padding: 8px 12px;
             border-radius: 50px;
-            
+
             /* Glass Look matches main menu */
             background: rgba(255, 255, 255, 0.65);
             backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.8);
             box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            
+
             z-index: 9000;
             pointer-events: auto;
             transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
@@ -155,19 +157,19 @@
             transform: translate(-50%, -50%) scale(0.95); /* Start slightly smaller */
             z-index: 10000;
             pointer-events: none; /* Wrapper passes clicks, Panel catches them */
-            
+
             /* Visibility managed via JS classes on this wrapper */
             opacity: 0;
             visibility: hidden;
             transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        
+
         #main-menu-wrapper.active {
             opacity: 1;
             visibility: visible;
             transform: translate(-50%, -50%) scale(1); /* Pop in effect */
         }
-        
+
         /* The Spinning Gradient Background (Border) */
         #main-menu-wrapper::before {
             content: "";
@@ -175,7 +177,7 @@
             top: -5px; left: -5px; right: -5px; bottom: -5px;
             border-radius: 28px;
             background: conic-gradient(
-                from 0deg, 
+                from 0deg,
                 #D00000, #FF5600, #FFEA00, #05FF74, #0093ED, #5FFFFF, #75B8DD, #D00000
             );
             z-index: -1;
@@ -189,7 +191,7 @@
             top: 10px; left: 10px; right: 10px; bottom: 10px;
             border-radius: 28px;
             background: conic-gradient(
-                from 0deg, 
+                from 0deg,
                 #D00000, #FF5600, #FFEA00, #05FF74, #0093ED, #5FFFFF, #75B8DD, #D00000
             );
             filter: blur(40px);
@@ -216,7 +218,7 @@
             pointer-events: auto;
             display: flex;
             flex-direction: column;
-            overflow: hidden; 
+            overflow: hidden;
         }
 
         /* Header Styling */
@@ -275,14 +277,14 @@
             border-bottom: 1px solid rgba(0,0,0,0.05);
         }
         .toggle-row:last-child { border-bottom: none; }
-        
+
         .toggle-switch {
             position: relative;
             width: 44px;
             height: 24px;
         }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        
+
         .slider {
             position: absolute;
             cursor: pointer;
@@ -303,7 +305,7 @@
             border-radius: 50%;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        
+
         input:checked + .slider {
             background: linear-gradient(90deg, #05FF74, #0093ED);
         }
@@ -365,7 +367,7 @@
         #coto-sidebar-container:hover #sidebar-content {
             box-shadow: 10px 0 40px rgba(0,0,0,0.2);
         }
-        
+
         #sidebar-content {
             width: 100%;
             height: 100%;
@@ -453,7 +455,7 @@
 
     <!-- MAIN DESKTOP AREA -->
     <div id="coto-desktop">
-        
+
         <!-- ALERT POPUP (Hidden by default) -->
         <div id="notification-popup">
             <svg id="popup-frame" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" viewBox="0 0 1920 1080">
@@ -508,8 +510,8 @@
 
         <!-- 2. MAIN MENU / SETTINGS PANEL -->
         <div id="main-menu-wrapper" class="active">
-            <div id="main-menu-panel"> 
-                
+            <div id="main-menu-panel">
+
                 <!-- Glass Header -->
                 <div class="glass-header px-10 py-6 flex justify-between items-center">
                     <div>
@@ -524,7 +526,7 @@
 
                 <!-- Content Grid -->
                 <div class="settings-grid flex-grow">
-                    
+
                     <!-- 1. STAT BAR WIDGETS -->
                     <div class="setting-card col-span-1">
                         <div class="flex items-center justify-between mb-4">
@@ -545,27 +547,23 @@
                         <!-- COLLAPSIBLE SETTINGS CONTAINER -->
                         <div id="stats-sub-options" class="space-y-1 transition-all duration-300 overflow-hidden" style="max-height: 500px; opacity: 1;">
                             <div class="h-px bg-slate-200 my-2"></div>
-                            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">Visible Widgets</p>
-                            
-                            <div class="toggle-row">
-                                <span class="text-sm font-bold text-slate-600">Session Followers</span>
-                                <label class="toggle-switch"><input type="checkbox" class="stat-toggle-input" data-target="stat-followers-session" checked onchange="toggleStat('stat-followers-session')"><span class="slider"></span></label>
+
+                            <div class="px-1 mb-3">
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-xs font-bold text-slate-500 uppercase">Scale</span>
+                                    <span id="stat-scale-display" class="text-xs font-bold text-blue-500">1.0x</span>
+                                </div>
+                                <input type="range" id="stat-scale" min="0.5" max="1.5" step="0.1" value="1.0"
+                                    class="w-full h-1 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                    oninput="updateStatScale(this.value)">
                             </div>
-                            <div class="toggle-row">
-                                <span class="text-sm font-bold text-slate-600">Last Follower</span>
-                                <label class="toggle-switch"><input type="checkbox" class="stat-toggle-input" data-target="stat-last-follower" checked onchange="toggleStat('stat-last-follower')"><span class="slider"></span></label>
-                            </div>
-                            <div class="toggle-row">
-                                <span class="text-sm font-bold text-slate-600">Last Subscriber</span>
-                                <label class="toggle-switch"><input type="checkbox" class="stat-toggle-input" data-target="stat-last-sub" checked onchange="toggleStat('stat-last-sub')"><span class="slider"></span></label>
-                            </div>
-                             <div class="toggle-row">
-                                <span class="text-sm font-bold text-slate-600">Last Cheer</span>
-                                <label class="toggle-switch"><input type="checkbox" class="stat-toggle-input" data-target="stat-last-cheer" checked onchange="toggleStat('stat-last-cheer')"><span class="slider"></span></label>
-                            </div>
-                        </div>
+
+                            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">Widgets (Drag to Reorder)</p>
+
+                            <!-- Dynamic List Container -->
+                            <div id="stats-sortable-list"></div></div>
                     </div>
-                    
+
                     <!-- 2. ALERT BOX WIDGETS -->
                     <div class="setting-card col-span-1">
                         <div class="flex items-center justify-between mb-4">
@@ -576,7 +574,7 @@
                                     <p class="text-xs text-slate-500">Screen Popups</p>
                                 </div>
                             </div>
-                            
+
                             <div class="flex items-center gap-3">
                                 <button onclick="testAlert()" class="text-[10px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-600 px-3 py-1 rounded transition">TEST</button>
                                 <!-- MASTER ALERT TOGGLE -->
@@ -590,7 +588,7 @@
                         <!-- COLLAPSIBLE SETTINGS CONTAINER -->
                         <div id="alerts-sub-options" class="space-y-1 transition-all duration-300 overflow-hidden" style="max-height: 500px; opacity: 1;">
                             <div class="h-px bg-slate-200 my-2"></div>
-                            
+
                             <div class="px-1 mb-3">
                                 <div class="flex justify-between mb-1">
                                     <span class="text-xs font-bold text-slate-500 uppercase">Alert Duration</span>
@@ -602,7 +600,7 @@
                             </div>
 
                             <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">Enabled Events</p>
-                            
+
                             <div class="toggle-row">
                                 <span class="text-sm font-bold text-slate-600">New Follower</span>
                                 <label class="toggle-switch"><input type="checkbox" id="alert-follow" checked><span class="slider"></span></label>
@@ -661,7 +659,7 @@
 
         <!-- 3. SIDEBAR DRAWER -->
         <div id="coto-sidebar-container">
-            <div id="sidebar-trigger-tab"></div> 
+            <div id="sidebar-trigger-tab"></div>
 
             <div id="sidebar-content">
                 <!-- Branding -->
@@ -676,7 +674,7 @@
                     <div class="app-icon-visual">🏠</div>
                     <span class="app-label">Main Menu</span>
                 </div>
-                
+
                 <div class="h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent my-4 mx-2"></div>
 
                 <!-- DYNAMIC BUTTONS WILL BE INJECTED HERE -->
@@ -690,7 +688,7 @@
                     <div class="app-icon-visual" style="color: #FF5600;">↻</div>
                     <span class="app-label text-sm text-slate-400 group-hover:text-slate-600">Reload</span>
                 </div>
-                
+
                 <!-- Sidebar Footer Credit -->
                 <div class="mt-4 text-center">
                     <a href="https://www.twitch.tv/thechildoftoledo" target="_blank" class="text-[9px] text-slate-400 hover:text-blue-500 uppercase font-bold tracking-widest transition">
@@ -722,12 +720,21 @@
 
         let sessionFollows = 0;
 
+        // --- STAT MODULES CONFIG ---
+        // Order and visibility state
+        let statModules = [
+            { id: 'stat-followers-session', label: 'Session Followers', enabled: true },
+            { id: 'stat-last-follower', label: 'Last Follower', enabled: true },
+            { id: 'stat-last-sub', label: 'Last Subscriber', enabled: true },
+            { id: 'stat-last-cheer', label: 'Last Cheer', enabled: true }
+        ];
+
         // HELPER FUNCTIONS FROM REFERENCE
         function getSafeData(payload) { return payload.data ? payload.data : payload; }
-        
+
         function getName(payload) {
             const d = getSafeData(payload);
-            
+
             // 1. Strings at top level
             if (typeof d.user === 'string') return d.user;
             if (d.user_name) return d.user_name;
@@ -735,9 +742,9 @@
             if (d.displayName) return d.displayName;
             if (d.userName) return d.userName;
             if (d.name) return d.name;
-            if (d.raider) return d.raider; 
-            
-            // 2. EventSub specific 
+            if (d.raider) return d.raider;
+
+            // 2. EventSub specific
             if (d.from_broadcaster_user_name) return d.from_broadcaster_user_name;
             if (d.from_broadcaster_user_login) return d.from_broadcaster_user_login;
 
@@ -746,14 +753,14 @@
                 if (d.user.name) return d.user.name;
                 if (d.user.display_name) return d.user.display_name;
                 if (d.user.displayName) return d.user.displayName;
-                if (d.user.login) return d.user.login; 
+                if (d.user.login) return d.user.login;
             }
             if (d.sender && typeof d.sender === 'object') {
                  if (d.sender.name) return d.sender.name;
                  if (d.sender.display_name) return d.sender.display_name;
             }
-            
-            return "User"; 
+
+            return "User";
         }
 
         function getTierFromPayload(payload) {
@@ -769,19 +776,19 @@
         // --- ALERT SYSTEM ---
         const notificationQueue = [];
         let isNotifying = false;
-        
+
         // Audio Synthesizer (No file needed)
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
+
         function playDing() {
             if (audioCtx.state === 'suspended') audioCtx.resume();
             const now = audioCtx.currentTime;
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1); 
+            osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
             gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
             osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now); osc.stop(now + 1.5);
-            
+
             const sparkle = audioCtx.createOscillator(); const sGain = audioCtx.createGain();
             sparkle.type = 'triangle'; sparkle.frequency.setValueAtTime(2000, now);
             sGain.gain.setValueAtTime(0.05, now); sGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
@@ -796,7 +803,7 @@
             notificationQueue.push({ title, message });
             processQueue();
         }
-        
+
         function testAlert() {
             showNotification("TEST ALERT", "This is a test.");
         }
@@ -810,7 +817,7 @@
             const popupEl = document.getElementById('notification-popup');
             const popupTitle = document.getElementById('notify-title');
             const popupMsg = document.getElementById('notify-message');
-            
+
             // Get Duration from slider
             const durationInput = document.getElementById('alert-duration');
             const durationSec = durationInput ? parseFloat(durationInput.value) : 6;
@@ -822,10 +829,10 @@
 
             popupEl.classList.remove('animate-pop');
             void popupEl.offsetWidth; // Trigger reflow
-            
+
             // Set dynamic animation duration
             popupEl.style.animationDuration = `${durationSec}s`;
-            
+
             popupEl.classList.add('animate-pop');
 
             // Wait for animation
@@ -852,7 +859,7 @@
             const name = getName(payload);
             updateText('val-session-follows', `+${sessionFollows}`);
             updateText('val-last-follow', name);
-            
+
             // Trigger Alert if enabled
             if (document.getElementById('alert-follow').checked) {
                 showNotification("NEW FOLLOWER", name);
@@ -903,7 +910,7 @@
         // 4. RAIDS
         client.on('Twitch.Raid', (payload) => {
             const d = getSafeData(payload);
-            const raider = getName(payload); 
+            const raider = getName(payload);
             const viewers = d.viewers || 0;
             console.log("Raid Event Data:", payload); // Log for debugging
 
@@ -917,12 +924,121 @@
         window.addEventListener('load', () => {
             console.log("TCOTO: Initializing...");
             initSidebar();
-            
+            renderStatSettings();
+            updateStatBarOrder(); // Ensure DOM matches initial JS order
+
             // Init audio context on interaction
             document.body.addEventListener('click', () => {
                 if (audioCtx.state === 'suspended') audioCtx.resume();
             }, { once: true });
         });
+
+        function renderStatSettings() {
+            const listContainer = document.getElementById('stats-sortable-list');
+            listContainer.innerHTML = '';
+
+            statModules.forEach((mod, index) => {
+                const row = document.createElement('div');
+                row.className = 'toggle-row draggable-item';
+                row.draggable = true;
+                row.dataset.index = index;
+
+                // Drag Events
+                row.addEventListener('dragstart', handleDragStart);
+                row.addEventListener('dragover', handleDragOver);
+                row.addEventListener('drop', handleDrop);
+                row.addEventListener('dragenter', handleDragEnter);
+                row.addEventListener('dragleave', handleDragLeave);
+
+                row.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="cursor-grab text-slate-400 hover:text-slate-600">☰</span>
+                        <span class="text-sm font-bold text-slate-600 select-none">${mod.label}</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" class="stat-toggle-input"
+                               data-target="${mod.id}"
+                               ${mod.enabled ? 'checked' : ''}
+                               onchange="toggleStat('${mod.id}', this)">
+                        <span class="slider"></span>
+                    </label>
+                `;
+                listContainer.appendChild(row);
+            });
+        }
+
+        // --- DRAG AND DROP LOGIC ---
+        let dragSrcEl = null;
+
+        function handleDragStart(e) {
+            dragSrcEl = this;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', this.dataset.index);
+            this.style.opacity = '0.4';
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDragEnter(e) {
+            this.classList.add('bg-blue-50');
+        }
+
+        function handleDragLeave(e) {
+            this.classList.remove('bg-blue-50');
+        }
+
+        function handleDrop(e) {
+            if (e.stopPropagation) e.stopPropagation();
+
+            const dragIdx = parseInt(dragSrcEl.dataset.index);
+            const dropIdx = parseInt(this.dataset.index);
+
+            if (dragSrcEl !== this) {
+                // Move item in array
+                const item = statModules.splice(dragIdx, 1)[0];
+                statModules.splice(dropIdx, 0, item);
+
+                // Re-render
+                renderStatSettings();
+                updateStatBarOrder();
+            }
+
+            // Cleanup styles
+            const cols = document.querySelectorAll('.draggable-item');
+            cols.forEach(col => {
+                col.classList.remove('bg-blue-50');
+                col.style.opacity = '1';
+            });
+
+            return false;
+        }
+
+        function updateStatBarOrder() {
+            const bar = document.getElementById('top-stat-bar');
+            // We need to keep the elements but reorder them.
+            // Best way: detach all known modules and re-append in order.
+
+            statModules.forEach(mod => {
+                const el = document.getElementById(mod.id);
+                if (el) {
+                    bar.appendChild(el); // Appending an existing child moves it
+                    // Ensure visibility matches state
+                    if (mod.enabled) el.classList.remove('hidden-stat');
+                    else el.classList.add('hidden-stat');
+                }
+            });
+        }
+
+        function updateStatScale(val) {
+            const bar = document.getElementById('top-stat-bar');
+            document.getElementById('stat-scale-display').innerText = val + 'x';
+            // Important: Maintain centering transform
+            bar.style.transform = `translateX(-50%) scale(${val})`;
+        }
 
         function initSidebar() {
             const frameLayer = document.getElementById('dynamic-frames-layer');
@@ -953,20 +1069,27 @@
             if (show) wrapper.classList.add('active');
             else wrapper.classList.remove('active');
         }
-        
-        function toggleStat(elementId) {
-            const el = document.getElementById(elementId);
-            if(el) el.classList.toggle('hidden-stat');
 
-            // Auto-hide logic
-            const inputs = document.querySelectorAll('.stat-toggle-input');
-            const isAnyChecked = Array.from(inputs).some(input => input.checked);
-            
+        function toggleStat(elementId, inputEl) {
+            // Update Array State
+            const mod = statModules.find(m => m.id === elementId);
+            if (mod && inputEl) mod.enabled = inputEl.checked;
+
+            // Update DOM
+            const el = document.getElementById(elementId);
+            if(el) {
+                if (mod.enabled) el.classList.remove('hidden-stat');
+                else el.classList.add('hidden-stat');
+            }
+
+            // Auto-hide logic for master toggle
+            const isAnyChecked = statModules.some(m => m.enabled);
+
             if (!isAnyChecked) {
                 const master = document.getElementById('toggle-master-stats');
                 if (master.checked) {
                     master.checked = false;
-                    toggleMasterStats(); 
+                    toggleMasterStats();
                 }
             }
         }
@@ -976,6 +1099,10 @@
             const bar = document.getElementById('top-stat-bar');
             const options = document.getElementById('stats-sub-options');
 
+            // Get current scale to preserve it
+            const scaleInput = document.getElementById('stat-scale');
+            const currentScale = scaleInput ? scaleInput.value : '1.0';
+
             if (isChecked) {
                 const inputs = document.querySelectorAll('.stat-toggle-input');
                 const isAnyChecked = Array.from(inputs).some(input => input.checked);
@@ -983,6 +1110,12 @@
                     inputs.forEach(input => {
                         input.checked = true;
                         const targetId = input.getAttribute('data-target');
+
+                        // Sync State
+                        const mod = statModules.find(m => m.id === targetId);
+                        if (mod) mod.enabled = true;
+
+                        // Sync DOM
                         if (targetId) {
                             const el = document.getElementById(targetId);
                             if (el) el.classList.remove('hidden-stat');
@@ -990,14 +1123,14 @@
                     });
                 }
                 bar.style.opacity = '1';
-                bar.style.transform = 'translateX(-50%) translateY(0)';
+                bar.style.transform = `translateX(-50%) scale(${currentScale}) translateY(0)`;
                 bar.style.pointerEvents = 'auto';
                 options.style.maxHeight = '500px';
                 options.style.opacity = '1';
                 options.style.marginTop = '0';
             } else {
                 bar.style.opacity = '0';
-                bar.style.transform = 'translateX(-50%) translateY(-20px)';
+                bar.style.transform = `translateX(-50%) scale(${currentScale}) translateY(-20px)`;
                 bar.style.pointerEvents = 'none';
                 options.style.maxHeight = '0px';
                 options.style.opacity = '0';
@@ -1008,7 +1141,7 @@
         function toggleMasterAlerts() {
             const isChecked = document.getElementById('toggle-master-alerts').checked;
             const options = document.getElementById('alerts-sub-options');
-            
+
             if (isChecked) {
                 options.style.maxHeight = '500px';
                 options.style.opacity = '1';
@@ -1026,7 +1159,7 @@
 
             const targetFrame = document.getElementById(`frame-${targetId}`);
             const targetBtn = document.getElementById(`btn-${targetId}`);
-            
+
             toggleSettings(false);
 
             OVERLAYS.forEach(app => {
