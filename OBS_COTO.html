@@ -1509,13 +1509,41 @@
             if (!el) return;
             const text = el.innerText;
 
-            navigator.clipboard.writeText(text).then(() => {
-                // Visual feedback?
-                // Just console for now, maybe toast later.
-                console.log("Copied to clipboard");
-            }).catch(err => {
-                console.error("Failed to copy", err);
-            });
+            // Try Async Clipboard API first (Secure Contexts)
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    console.log("Copied to clipboard via API");
+                }).catch(err => {
+                    console.warn("Clipboard API failed, trying fallback...", err);
+                    fallbackCopyText(text);
+                });
+            } else {
+                fallbackCopyText(text);
+            }
+        }
+
+        function fallbackCopyText(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+
+            // Ensure it's not visible but part of DOM
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "0";
+            document.body.appendChild(textArea);
+
+            textArea.focus();
+            textArea.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                const msg = successful ? 'successful' : 'unsuccessful';
+                console.log('Fallback copy was ' + msg);
+            } catch (err) {
+                console.error('Fallback copy failed', err);
+            }
+
+            document.body.removeChild(textArea);
         }
     </script>
 </body>
