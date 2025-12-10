@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TCOTO - Master Directory</title>
+    
+    <!-- Fonts: Poppins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Google Fonts: Barlow (For Alerts matching Ballpit) -->
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@600;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Streamer.bot Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@streamerbot/client/dist/streamerbot-client.js"></script>
+
+    <style>
+        /* --- OBS TRANSPARENCY SETUP --- */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 1920px;
+            height: 1080px;
+            background-color: transparent;
+            overflow: hidden;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        /* Master Container */
+        #coto-desktop {
+            position: relative;
+            width: 1920px;
+            height: 1080px;
+            pointer-events: none;
+        }
+
+        /* --- ALERT POPUP STYLES (From Ballpit) --- */
+        #notification-popup {
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            padding: 50px 80px;
+            text-align: center;
+            z-index: 20000; /* Increased to be ABOVE the main menu (10000) */
+            pointer-events: none;
+            opacity: 0;
+            overflow: hidden;
+            font-family: "Barlow", sans-serif;
+        }
+
+        /* The SVG Frame Layer */
+        #popup-frame {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: -1;
+        }
+
+        #notify-title {
+            font-size: 3rem;
+            color: #FFD700;
+            font-weight: 800;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            line-height: 1;
+            text-shadow: 2px 2px 0px #000;
+            position: relative;
+            z-index: 2;
+        }
+
+        #notify-message {
+            font-size: 2rem;
+            color: white;
+            font-weight: 600;
+            margin-top: 10px;
+            text-shadow: 1px 1px 2px black;
+            position: relative;
+            z-index: 2;
+        }
+
+        .animate-pop {
+            /* Duration is overridden by JS */
+            animation: popSequence 6s forwards;
+        }
+
+        @keyframes popSequence {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            5% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+            10% { transform: translate(-50%, -50%) scale(1.0); opacity: 1; }
+            90% { transform: translate(-50%, -50%) scale(1.0); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(0.9); opacity: 0; }
+        }
+
+        /* --- STAT BAR (Top Center) --- */
+        #top-stat-bar {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            padding: 8px 12px;
+            border-radius: 50px;
+            
+            /* Glass Look matches main menu */
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            
+            z-index: 9000;
+            pointer-events: auto;
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            border-radius: 30px;
+            background: rgba(255,255,255,0.5);
+            border: 1px solid rgba(255,255,255,0.2);
+            font-size: 13px;
+            font-weight: 600;
+            color: #1e293b;
+            white-space: nowrap;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .stat-item.hidden-stat {
+            width: 0;
+            padding: 0;
+            opacity: 0;
+            overflow: hidden;
+            margin: 0;
+            border: none;
+        }
+
+        .stat-icon { color: #0093ED; font-size: 14px; }
+        .stat-label { color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 700; margin-right: 4px; }
+        .stat-value { color: #0f172a; font-weight: 700; }
+
+        /* --- WRAPPER: Handles Position, Visibility & Rainbow Border --- */
+        #main-menu-wrapper {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 950px; height: 700px;
+            transform: translate(-50%, -50%) scale(0.95); /* Start slightly smaller */
+            z-index: 10000;
+            pointer-events: none; /* Wrapper passes clicks, Panel catches them */
+            
+            /* Visibility managed via JS classes on this wrapper */
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        
+        #main-menu-wrapper.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, -50%) scale(1); /* Pop in effect */
+        }
+        
+        /* The Spinning Gradient Background (Border) */
+        #main-menu-wrapper::before {
+            content: "";
+            position: absolute;
+            top: -5px; left: -5px; right: -5px; bottom: -5px;
+            border-radius: 28px;
+            background: conic-gradient(
+                from 0deg, 
+                #D00000, #FF5600, #FFEA00, #05FF74, #0093ED, #5FFFFF, #75B8DD, #D00000
+            );
+            z-index: -1;
+            animation: spin-rainbow 4s linear infinite;
+        }
+
+        /* Soft Blur Glow behind the border */
+        #main-menu-wrapper::after {
+            content: "";
+            position: absolute;
+            top: 10px; left: 10px; right: 10px; bottom: 10px;
+            border-radius: 28px;
+            background: conic-gradient(
+                from 0deg, 
+                #D00000, #FF5600, #FFEA00, #05FF74, #0093ED, #5FFFFF, #75B8DD, #D00000
+            );
+            filter: blur(40px);
+            opacity: 0.6;
+            z-index: -2;
+            animation: spin-rainbow 4s linear infinite;
+        }
+
+        @keyframes spin-rainbow {
+            0% { filter: hue-rotate(0deg); }
+            100% { filter: hue-rotate(360deg); }
+        }
+
+        /* --- PANEL: Handles Glass Look & Content --- */
+        #main-menu-panel {
+            width: 100%;
+            height: 100%;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(30px) saturate(120%);
+            -webkit-backdrop-filter: blur(30px) saturate(120%);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: inset 0 0 20px rgba(255,255,255,0.5), 0 20px 50px rgba(0,0,0,0.2);
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; 
+        }
+
+        /* Header Styling */
+        .glass-header {
+            background: linear-gradient(to bottom, rgba(255,255,255,0.8), rgba(255,255,255,0.4));
+            border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        /* Settings Grid */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            padding: 40px;
+            overflow-y: auto;
+        }
+
+        .settings-grid::-webkit-scrollbar { width: 6px; }
+        .settings-grid::-webkit-scrollbar-track { background: transparent; }
+        .settings-grid::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
+
+        /* Ice White Cards */
+        .setting-card {
+            position: relative;
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+
+        .setting-card:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.7);
+            border-color: #fff;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+
+        .card-icon-bg {
+            background: white;
+            border-radius: 12px;
+            width: 48px; height: 48px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 16px;
+            font-size: 24px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+
+        /* TOGGLE SWITCHES */
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        .toggle-row:last-child { border-bottom: none; }
+        
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #cbd5e1;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        input:checked + .slider {
+            background: linear-gradient(90deg, #05FF74, #0093ED);
+        }
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Branding Text */
+        .tcoto-brand {
+            background: linear-gradient(to right, #D00000, #FF5600, #FFEA00, #05FF74, #0093ED);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 2px 0px rgba(0,0,0,0.1));
+        }
+
+        .twitch-link {
+            color: #1e293b;
+            font-weight: 800;
+            text-decoration: none;
+            position: relative;
+            transition: color 0.3s;
+        }
+        .twitch-link:hover {
+            background: linear-gradient(to right, #9146FF, #FF5600);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* --- THE SIDEBAR MENU --- */
+        #coto-sidebar-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 300px;
+            pointer-events: auto;
+            z-index: 9999;
+            transform: translateX(-100%);
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: flex;
+        }
+
+        /* Invisible Hitbox */
+        #sidebar-trigger-tab {
+            position: absolute;
+            top: 0;
+            right: -40px;
+            width: 40px;
+            height: 100%;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+        }
+
+        #coto-sidebar-container:hover {
+            transform: translateX(0);
+        }
+
+        #coto-sidebar-container:hover #sidebar-content {
+            box-shadow: 10px 0 40px rgba(0,0,0,0.2);
+        }
+        
+        #sidebar-content {
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            border-right: 4px solid transparent;
+            border-image: linear-gradient(to bottom, #D00000, #FF5600, #FFEA00, #05FF74, #0093ED, #5FFFFF) 1;
+            backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
+            padding: 40px 20px;
+            transition: box-shadow 0.3s ease;
+        }
+
+        /* App Items */
+        .app-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 16px;
+            margin-bottom: 10px;
+            border-radius: 12px;
+            background: white;
+            border: 1px solid rgba(0,0,0,0.05);
+            border-left: 4px solid #94a3b8;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .app-item:hover {
+            background: linear-gradient(90deg, #f0fdf4, white);
+            border-left-color: #05FF74;
+            color: #0f172a;
+            padding-left: 20px;
+            box-shadow: 0 5px 15px rgba(5, 255, 116, 0.2);
+        }
+
+        .app-item.active {
+            background: linear-gradient(90deg, #ecfeff, white);
+            border-left-color: #0093ED;
+            color: #0093ED;
+            border-top: 1px solid #cffafe;
+        }
+
+        .app-item.system-btn {
+            border-left-color: #D00000;
+        }
+        .app-item.system-btn:hover {
+            background: linear-gradient(90deg, #fef2f2, white);
+            border-left-color: #FF5600;
+        }
+
+        .app-icon-visual { font-size: 22px; width: 32px; text-align: center; }
+        .app-label { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* --- FULL SCREEN FRAMES --- */
+        .full-screen-frame {
+            position: absolute;
+            top: 0; left: 0;
+            width: 1920px; height: 1080px;
+            border: none; background: transparent;
+            pointer-events: auto;
+            opacity: 0; visibility: hidden;
+            transition: opacity 0.5s ease, visibility 0.5s;
+            z-index: 100;
+        }
+        .full-screen-frame.open { opacity: 1; visibility: visible; }
+        iframe { width: 100%; height: 100%; border: none; background: transparent; }
+
+        body.debug-mode #coto-desktop {
+            background: rgba(255, 0, 0, 0.1);
+            border: 5px solid red;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Debug Button -->
+    <div style="position: absolute; top: 0; left: 0; z-index: 99999; pointer-events: auto;">
+        <button onclick="document.body.classList.toggle('debug-mode')" class="bg-gray-800 text-xs text-gray-400 hover:text-white px-2 py-1 rounded-br opacity-50 hover:opacity-100 transition">
+            Debug
+        </button>
+    </div>
+
+    <!-- MAIN DESKTOP AREA -->
+    <div id="coto-desktop">
+        
+        <!-- ALERT POPUP (Hidden by default) -->
+        <div id="notification-popup">
+            <svg id="popup-frame" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" viewBox="0 0 1920 1080">
+                <rect x="14.7" y="14.7" width="1890.6" height="1050.6" fill="rgba(0,0,0,0.9)" rx="112.8"/>
+                <rect x="121.5" y="121.5" width="1677.0" height="837.0" stroke="#D00000" stroke-width="3.6" fill="none" rx="6.0"/>
+                <rect x="112.2" y="112.2" width="1695.6" height="855.6" stroke="red" stroke-width="15" fill="none" rx="15.3"/>
+                <rect x="102.9" y="102.9" width="1714.2" height="874.2" stroke="#C82451" stroke-width="3.6" fill="none" rx="24.6"/>
+                <rect x="92.1" y="92.1" width="1735.8" height="895.8" stroke="#FF5600" stroke-width="3.6" fill="none" rx="35.4"/>
+                <rect x="82.8" y="82.8" width="1754.4" height="914.4" stroke="#FFEA00" stroke-width="15" fill="none" rx="44.7"/>
+                <rect x="73.5" y="73.5" width="1773.0" height="933.0" stroke="#E6A34C" stroke-width="3.6" fill="none" rx="54.0"/>
+                <rect x="62.7" y="62.7" width="1794.6" height="954.6" stroke="#00A900" stroke-width="3.6" fill="none" rx="64.8"/>
+                <rect x="53.4" y="53.4" width="1813.2" height="973.2" stroke="#05FF74" stroke-width="15" fill="none" rx="74.1"/>
+                <rect x="44.1" y="44.1" width="1831.8" height="991.8" stroke="#57BB7C" stroke-width="3.6" fill="none" rx="83.4"/>
+                <rect x="33.3" y="33.3" width="1853.4" height="1013.4" stroke="#0093ED" stroke-width="3.6" fill="none" rx="94.2"/>
+                <rect x="24.0" y="24.0" width="1872.0" height="1032.0" stroke="#5FFFFF" stroke-width="15" fill="none" rx="103.5"/>
+                <rect x="14.7" y="14.7" width="1890.6" height="1050.6" stroke="#75B8DD" stroke-width="3.6" fill="none" rx="112.8"/>
+            </svg>
+            <div id="notify-title">NEW EVENT</div>
+            <div id="notify-message">User Name</div>
+        </div>
+
+        <!-- TOP STAT BAR -->
+        <div id="top-stat-bar">
+            <!-- 1. Followers Session -->
+            <div id="stat-followers-session" class="stat-item">
+                <span class="stat-icon">📈</span>
+                <span class="stat-label">Session:</span>
+                <span id="val-session-follows" class="stat-value">0</span>
+            </div>
+            <!-- 2. Last Follower -->
+            <div id="stat-last-follower" class="stat-item">
+                <span class="stat-icon">👤</span>
+                <span class="stat-label">Last Follow:</span>
+                <span id="val-last-follow" class="stat-value">None</span>
+            </div>
+            <!-- 3. Last Sub -->
+            <div id="stat-last-sub" class="stat-item">
+                <span class="stat-icon">⭐</span>
+                <span class="stat-label">Last Sub:</span>
+                <span id="val-last-sub" class="stat-value">None</span>
+            </div>
+            <!-- 4. Last Cheer -->
+            <div id="stat-last-cheer" class="stat-item">
+                <span class="stat-icon">💎</span>
+                <span class="stat-label">Last Cheer:</span>
+                <span id="val-last-cheer" class="stat-value">None</span>
+            </div>
+        </div>
+
+        <!-- 1. DYNAMIC FRAMES LAYER -->
+        <div id="dynamic-frames-layer"></div>
+
+        <!-- 2. MAIN MENU / SETTINGS PANEL -->
+        <div id="main-menu-wrapper" class="active">
+            <div id="main-menu-panel"> 
+                
+                <!-- Glass Header -->
+                <div class="glass-header px-10 py-6 flex justify-between items-center">
+                    <div>
+                        <h1 class="text-5xl font-black tcoto-brand uppercase italic tracking-tighter">TCOTO</h1>
+                        <p class="text-[11px] text-slate-500 font-bold uppercase tracking-[0.4em] mt-1 pl-1">Control Center</p>
+                    </div>
+                    <button onclick="toggleSettings(false)" class="group flex items-center gap-3 px-6 py-2 rounded-full bg-white border border-slate-200 hover:bg-slate-50 transition shadow-sm">
+                        <span class="text-xs font-bold text-slate-400 group-hover:text-slate-600 uppercase tracking-wider">Minimize</span>
+                        <span class="text-lg text-slate-400 group-hover:text-slate-600">→</span>
+                    </button>
+                </div>
+
+                <!-- Content Grid -->
+                <div class="settings-grid flex-grow">
+                    
+                    <!-- 1. STAT BAR WIDGETS -->
+                    <div class="setting-card col-span-1">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center gap-3">
+                                <div class="card-icon-bg text-blue-500 mb-0 w-10 h-10 text-lg">📊</div>
+                                <div>
+                                    <h3 class="text-slate-800 font-bold text-lg">Stat Bar</h3>
+                                    <p class="text-xs text-slate-500">Global Control</p>
+                                </div>
+                            </div>
+                            <!-- MASTER STATS TOGGLE -->
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-master-stats" checked onchange="toggleMasterStats()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <!-- COLLAPSIBLE SETTINGS CONTAINER -->
+                        <div id="stats-sub-options" class="space-y-1 transition-all duration-300 overflow-hidden" style="max-height: 500px; opacity: 1;">
+                            <div class="h-px bg-slate-200 my-2"></div>
+                            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">Visible Widgets</p>
+                            
+                            <div class="toggle-row">
+                                <span class="text-sm font-bold text-slate-600">Session Followers</span>
+                                <label class="toggle-switch"><input type="checkbox" class="stat-toggle-input" data-target="stat-followers-session" checked onchange="toggleStat('stat-followers-session')"><span class="slider"></span></label>
+                            </div>
+                            <div class="toggle-row">
+                                <span class="text-sm font-bold text-slate-600">Last Follower</span>
+                                <label class="toggle-switch"><input type="checkbox" class="stat-toggle-input" data-target="stat-last-follower" checked onchange="toggleStat('stat-last-follower')"><span class="slider"></span></label>
+                            </div>
+                            <div class="toggle-row">
+                                <span class="text-sm font-bold text-slate-600">Last Subscriber</span>
+                                <label class="toggle-switch"><input type="checkbox" class="stat-toggle-input" data-target="stat-last-sub" checked onchange="toggleStat('stat-last-sub')"><span class="slider"></span></label>
+                            </div>
+                             <div class="toggle-row">
+                                <span class="text-sm font-bold text-slate-600">Last Cheer</span>
+                                <label class="toggle-switch"><input type="checkbox" class="stat-toggle-input" data-target="stat-last-cheer" checked onchange="toggleStat('stat-last-cheer')"><span class="slider"></span></label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 2. ALERT BOX WIDGETS -->
+                    <div class="setting-card col-span-1">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center gap-3">
+                                <div class="card-icon-bg text-yellow-500 mb-0 w-10 h-10 text-lg">🔔</div>
+                                <div>
+                                    <h3 class="text-slate-800 font-bold text-lg">Alert Box</h3>
+                                    <p class="text-xs text-slate-500">Screen Popups</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center gap-3">
+                                <button onclick="testAlert()" class="text-[10px] font-bold bg-slate-200 hover:bg-slate-300 text-slate-600 px-3 py-1 rounded transition">TEST</button>
+                                <!-- MASTER ALERT TOGGLE -->
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggle-master-alerts" checked onchange="toggleMasterAlerts()">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- COLLAPSIBLE SETTINGS CONTAINER -->
+                        <div id="alerts-sub-options" class="space-y-1 transition-all duration-300 overflow-hidden" style="max-height: 500px; opacity: 1;">
+                            <div class="h-px bg-slate-200 my-2"></div>
+                            
+                            <div class="px-1 mb-3">
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-xs font-bold text-slate-500 uppercase">Alert Duration</span>
+                                    <span id="alert-duration-display" class="text-xs font-bold text-blue-500">6s</span>
+                                </div>
+                                <input type="range" id="alert-duration" min="0.5" max="10" step="0.5" value="6" 
+                                    class="w-full h-1 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                    oninput="document.getElementById('alert-duration-display').innerText = this.value + 's'">
+                            </div>
+
+                            <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">Enabled Events</p>
+                            
+                            <div class="toggle-row">
+                                <span class="text-sm font-bold text-slate-600">New Follower</span>
+                                <label class="toggle-switch"><input type="checkbox" id="alert-follow" checked><span class="slider"></span></label>
+                            </div>
+                            <div class="toggle-row">
+                                <span class="text-sm font-bold text-slate-600">Subscriptions</span>
+                                <label class="toggle-switch"><input type="checkbox" id="alert-sub" checked><span class="slider"></span></label>
+                            </div>
+                            <div class="toggle-row">
+                                <span class="text-sm font-bold text-slate-600">Cheers / Bits</span>
+                                <label class="toggle-switch"><input type="checkbox" id="alert-cheer" checked><span class="slider"></span></label>
+                            </div>
+                            <div class="toggle-row">
+                                <span class="text-sm font-bold text-slate-600">Incoming Raids</span>
+                                <label class="toggle-switch"><input type="checkbox" id="alert-raid" checked><span class="slider"></span></label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card 3: Quick Actions -->
+                    <div class="setting-card col-span-1">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="card-icon-bg text-green-500 mb-0 w-10 h-10 text-lg">🎨</div>
+                            <h3 class="text-slate-800 font-bold">Quick Actions</h3>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 mt-3">
+                            <button class="py-2 rounded bg-white hover:bg-slate-50 border border-slate-200 text-xs font-bold text-slate-600 shadow-sm transition">Reset Scene</button>
+                            <button class="py-2 rounded bg-white hover:bg-slate-50 border border-slate-200 text-xs font-bold text-slate-600 shadow-sm transition">Clear Cache</button>
+                        </div>
+                    </div>
+
+                    <!-- Card 4: Quick Launch -->
+                    <div class="setting-card col-span-1 flex flex-col justify-center items-center text-center relative overflow-hidden group cursor-pointer" onclick="toggleSettings(false)">
+                        <div class="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 opacity-0 group-hover:opacity-100 transition duration-500"></div>
+                        <div class="relative z-10">
+                            <div class="text-5xl mb-3 transform group-hover:scale-110 transition duration-300">🚀</div>
+                            <h3 class="text-slate-800 font-bold text-xl">Quick Launch</h3>
+                            <p class="text-xs text-slate-500 mt-2 max-w-[200px] mx-auto">Minimize this panel and open the sidebar to select an app.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="px-10 py-4 bg-white/40 border-t border-white/60 text-right flex justify-between items-center">
+                    <div class="flex gap-2">
+                        <span class="w-2 h-2 rounded-full bg-red-500 shadow-sm"></span>
+                        <span class="w-2 h-2 rounded-full bg-yellow-400 shadow-sm"></span>
+                        <span class="w-2 h-2 rounded-full bg-green-500 shadow-sm"></span>
+                    </div>
+                    <span class="text-[11px] text-slate-500 font-medium uppercase tracking-widest">
+                        Created by <a href="https://www.twitch.tv/thechildoftoledo" target="_blank" class="twitch-link">TheChildofToledo</a>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. SIDEBAR DRAWER -->
+        <div id="coto-sidebar-container">
+            <div id="sidebar-trigger-tab"></div> 
+
+            <div id="sidebar-content">
+                <!-- Branding -->
+                <div class="mb-6 pl-2 border-b border-slate-300 pb-4">
+                    <h1 class="text-4xl font-black tcoto-brand uppercase italic tracking-tighter">
+                        TCOTO
+                    </h1>
+                </div>
+
+                <!-- Main Menu Button (Always Top) -->
+                <div class="app-item system-btn active" onclick="toggleSettings(true)">
+                    <div class="app-icon-visual">🏠</div>
+                    <span class="app-label">Main Menu</span>
+                </div>
+                
+                <div class="h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent my-4 mx-2"></div>
+
+                <!-- DYNAMIC BUTTONS WILL BE INJECTED HERE -->
+                <div id="app-list-container"></div>
+
+                <!-- Spacer -->
+                <div class="flex-grow"></div>
+
+                <!-- Utility -->
+                <div class="app-item" onclick="location.reload()">
+                    <div class="app-icon-visual" style="color: #FF5600;">↻</div>
+                    <span class="app-label text-sm text-slate-400 group-hover:text-slate-600">Reload</span>
+                </div>
+                
+                <!-- Sidebar Footer Credit -->
+                <div class="mt-4 text-center">
+                    <a href="https://www.twitch.tv/thechildoftoledo" target="_blank" class="text-[9px] text-slate-400 hover:text-blue-500 uppercase font-bold tracking-widest transition">
+                        TheChildofToledo
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const OVERLAYS = [
+            { id: 'tetris',  name: 'Tetris',  icon: '🧩', file: 'tetris.html' },
+            { id: 'ballpit', name: 'Ballpit', icon: '🎱', file: 'ballpit.html' },
+        ];
+
+        // Internal State
+        const loadedApps = {};
+
+        // --- STREAMER.BOT SETUP ---
+        const client = new StreamerbotClient({
+            host: '127.0.0.1',
+            port: 8080,
+            endpoint: '/',
+            autoReconnect: true
+        });
+
+        let sessionFollows = 0;
+
+        // HELPER FUNCTIONS FROM REFERENCE
+        function getSafeData(payload) { return payload.data ? payload.data : payload; }
+        
+        function getName(payload) {
+            const d = getSafeData(payload);
+            
+            // 1. Strings at top level
+            if (typeof d.user === 'string') return d.user;
+            if (d.user_name) return d.user_name;
+            if (d.display_name) return d.display_name;
+            if (d.displayName) return d.displayName;
+            if (d.userName) return d.userName;
+            if (d.name) return d.name;
+            if (d.raider) return d.raider; 
+            
+            // 2. EventSub specific 
+            if (d.from_broadcaster_user_name) return d.from_broadcaster_user_name;
+            if (d.from_broadcaster_user_login) return d.from_broadcaster_user_login;
+
+            // 3. Nested objects
+            if (d.user && typeof d.user === 'object') {
+                if (d.user.name) return d.user.name;
+                if (d.user.display_name) return d.user.display_name;
+                if (d.user.displayName) return d.user.displayName;
+                if (d.user.login) return d.user.login; 
+            }
+            if (d.sender && typeof d.sender === 'object') {
+                 if (d.sender.name) return d.sender.name;
+                 if (d.sender.display_name) return d.sender.display_name;
+            }
+            
+            return "User"; 
+        }
+
+        function getTierFromPayload(payload) {
+            const d = getSafeData(payload);
+            return d.tier || d.sub_tier || d.plan || d.subPlan || '1000';
+        }
+
+        function updateText(id, text) {
+            const el = document.getElementById(id);
+            if (el) el.innerText = text;
+        }
+
+        // --- ALERT SYSTEM ---
+        const notificationQueue = [];
+        let isNotifying = false;
+        
+        // Audio Synthesizer (No file needed)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playDing() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1); 
+            gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(now); osc.stop(now + 1.5);
+            
+            const sparkle = audioCtx.createOscillator(); const sGain = audioCtx.createGain();
+            sparkle.type = 'triangle'; sparkle.frequency.setValueAtTime(2000, now);
+            sGain.gain.setValueAtTime(0.05, now); sGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+            sparkle.connect(sGain); sGain.connect(audioCtx.destination); sparkle.start(now); sparkle.stop(now + 0.3);
+        }
+
+        function showNotification(title, message) {
+            // Check Master Toggle
+            const masterAlerts = document.getElementById('toggle-master-alerts').checked;
+            if (!masterAlerts) return;
+
+            notificationQueue.push({ title, message });
+            processQueue();
+        }
+        
+        function testAlert() {
+            showNotification("TEST ALERT", "This is a test.");
+        }
+
+        function processQueue() {
+            if (isNotifying || notificationQueue.length === 0) return;
+
+            const next = notificationQueue.shift();
+            isNotifying = true;
+
+            const popupEl = document.getElementById('notification-popup');
+            const popupTitle = document.getElementById('notify-title');
+            const popupMsg = document.getElementById('notify-message');
+            
+            // Get Duration from slider
+            const durationInput = document.getElementById('alert-duration');
+            const durationSec = durationInput ? parseFloat(durationInput.value) : 6;
+
+            popupTitle.innerText = next.title;
+            popupMsg.innerText = next.message;
+
+            playDing();
+
+            popupEl.classList.remove('animate-pop');
+            void popupEl.offsetWidth; // Trigger reflow
+            
+            // Set dynamic animation duration
+            popupEl.style.animationDuration = `${durationSec}s`;
+            
+            popupEl.classList.add('animate-pop');
+
+            // Wait for animation
+            setTimeout(() => {
+                isNotifying = false;
+                processQueue();
+            }, durationSec * 1000);
+        }
+
+        // EVENT HANDLERS
+        client.on('Connect', () => {
+            console.log('TCOTO: Connected to Streamer.bot');
+            client.subscribe({ "Twitch": ["Follow", "Cheer", "Subscribe", "ReSubscribe", "GiftSubscription", "Subscription", "GiftSub", "Sub", "Raid"] });
+            // Fetch Initial Total Follower Count
+            client.request('GetBroadcaster', {}).then(resp => {
+                const count = resp.followerCount || resp.follower_count || resp.followercount || resp.totalFollowers || 0;
+                updateText('val-total-followers', count);
+            }).catch(err => console.log("Broadcaster Info Fetch Failed", err));
+        });
+
+        // 1. FOLLOWS
+        client.on('Twitch.Follow', (payload) => {
+            sessionFollows++;
+            const name = getName(payload);
+            updateText('val-session-follows', `+${sessionFollows}`);
+            updateText('val-last-follow', name);
+            
+            // Trigger Alert if enabled
+            if (document.getElementById('alert-follow').checked) {
+                showNotification("NEW FOLLOWER", name);
+            }
+        });
+
+        // 2. SUBSCRIPTIONS
+        const handleSub = (payload) => {
+            const username = getName(payload);
+            const d = getSafeData(payload);
+            const tierCodeRaw = getTierFromPayload(payload);
+            const tierCode = String(tierCodeRaw).toLowerCase().replace(/\s/g, '');
+            const isPrime = d.is_prime === true || d.isPrime === true;
+
+            let tierText = "Tier 1";
+            if (tierCode === '3000' || tierCode === 'tier3') tierText = "Tier 3";
+            else if (tierCode === '2000' || tierCode === 'tier2') tierText = "Tier 2";
+            else if (tierCode.includes('prime') || isPrime) tierText = "Prime";
+
+            updateText('val-last-sub', `${username} (${tierText})`);
+
+            // Trigger Alert if enabled
+            if (document.getElementById('alert-sub').checked) {
+                showNotification("NEW SUBSCRIPTION", `${username} - ${tierText}`);
+            }
+        };
+
+        client.on('Twitch.Subscribe', handleSub);
+        client.on('Twitch.ReSubscribe', handleSub);
+        client.on('Twitch.GiftSubscription', handleSub);
+        client.on('Twitch.Subscription', handleSub);
+        client.on('Twitch.GiftSub', handleSub);
+        client.on('Twitch.Sub', handleSub);
+
+        // 3. CHEERS
+        client.on('Twitch.Cheer', (payload) => {
+            const username = getName(payload);
+            const d = getSafeData(payload);
+            const bits = d.bits || 1;
+            updateText('val-last-cheer', `${username} (${bits})`);
+
+            // Trigger Alert if enabled
+            if (document.getElementById('alert-cheer').checked) {
+                showNotification("NEW CHEER", `${username} - ${bits} Bits`);
+            }
+        });
+
+        // 4. RAIDS
+        client.on('Twitch.Raid', (payload) => {
+            const d = getSafeData(payload);
+            const raider = getName(payload); 
+            const viewers = d.viewers || 0;
+            console.log("Raid Event Data:", payload); // Log for debugging
+
+            // Trigger Alert if enabled
+            if (document.getElementById('alert-raid').checked) {
+                showNotification("INCOMING RAID", `${raider} - ${viewers} Viewers`);
+            }
+        });
+
+        // --- MAIN INITIALIZATION ---
+        window.addEventListener('load', () => {
+            console.log("TCOTO: Initializing...");
+            initSidebar();
+            
+            // Init audio context on interaction
+            document.body.addEventListener('click', () => {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+            }, { once: true });
+        });
+
+        function initSidebar() {
+            const frameLayer = document.getElementById('dynamic-frames-layer');
+            const menuLayer = document.getElementById('app-list-container');
+
+            OVERLAYS.forEach(app => {
+                const frameDiv = document.createElement('div');
+                frameDiv.id = `frame-${app.id}`;
+                frameDiv.className = 'full-screen-frame';
+                frameDiv.innerHTML = `<iframe id="iframe-${app.id}" src="about:blank"></iframe>`;
+                frameLayer.appendChild(frameDiv);
+
+                const btnDiv = document.createElement('div');
+                btnDiv.id = `btn-${app.id}`;
+                btnDiv.className = 'app-item';
+                btnDiv.onclick = () => launchApp(app.id);
+                btnDiv.innerHTML = `<div class="app-icon-visual">${app.icon}</div><span class="app-label">${app.name}</span>`;
+                menuLayer.appendChild(btnDiv);
+
+                loadedApps[app.id] = false;
+            });
+        }
+
+        // --- CORE FUNCTIONS ---
+
+        function toggleSettings(show) {
+            const wrapper = document.getElementById('main-menu-wrapper');
+            if (show) wrapper.classList.add('active');
+            else wrapper.classList.remove('active');
+        }
+        
+        function toggleStat(elementId) {
+            const el = document.getElementById(elementId);
+            if(el) el.classList.toggle('hidden-stat');
+
+            // Auto-hide logic
+            const inputs = document.querySelectorAll('.stat-toggle-input');
+            const isAnyChecked = Array.from(inputs).some(input => input.checked);
+            
+            if (!isAnyChecked) {
+                const master = document.getElementById('toggle-master-stats');
+                if (master.checked) {
+                    master.checked = false;
+                    toggleMasterStats(); 
+                }
+            }
+        }
+
+        function toggleMasterStats() {
+            const isChecked = document.getElementById('toggle-master-stats').checked;
+            const bar = document.getElementById('top-stat-bar');
+            const options = document.getElementById('stats-sub-options');
+
+            if (isChecked) {
+                const inputs = document.querySelectorAll('.stat-toggle-input');
+                const isAnyChecked = Array.from(inputs).some(input => input.checked);
+                if (!isAnyChecked) {
+                    inputs.forEach(input => {
+                        input.checked = true;
+                        const targetId = input.getAttribute('data-target');
+                        if (targetId) {
+                            const el = document.getElementById(targetId);
+                            if (el) el.classList.remove('hidden-stat');
+                        }
+                    });
+                }
+                bar.style.opacity = '1';
+                bar.style.transform = 'translateX(-50%) translateY(0)';
+                bar.style.pointerEvents = 'auto';
+                options.style.maxHeight = '500px';
+                options.style.opacity = '1';
+                options.style.marginTop = '0';
+            } else {
+                bar.style.opacity = '0';
+                bar.style.transform = 'translateX(-50%) translateY(-20px)';
+                bar.style.pointerEvents = 'none';
+                options.style.maxHeight = '0px';
+                options.style.opacity = '0';
+                options.style.marginTop = '-10px';
+            }
+        }
+
+        function toggleMasterAlerts() {
+            const isChecked = document.getElementById('toggle-master-alerts').checked;
+            const options = document.getElementById('alerts-sub-options');
+            
+            if (isChecked) {
+                options.style.maxHeight = '500px';
+                options.style.opacity = '1';
+                options.style.marginTop = '0';
+            } else {
+                options.style.maxHeight = '0px';
+                options.style.opacity = '0';
+                options.style.marginTop = '-10px';
+            }
+        }
+
+        function launchApp(targetId) {
+            const appConfig = OVERLAYS.find(a => a.id === targetId);
+            if (!appConfig) return;
+
+            const targetFrame = document.getElementById(`frame-${targetId}`);
+            const targetBtn = document.getElementById(`btn-${targetId}`);
+            
+            toggleSettings(false);
+
+            OVERLAYS.forEach(app => {
+                document.getElementById(`frame-${app.id}`).classList.remove('open');
+                document.getElementById(`btn-${app.id}`).classList.remove('active');
+            });
+
+            targetFrame.classList.add('open');
+            targetBtn.classList.add('active');
+
+            if (!loadedApps[targetId]) {
+                const iframe = document.getElementById(`iframe-${targetId}`);
+                iframe.src = appConfig.file;
+                loadedApps[targetId] = true;
+                console.log(`TCOTO: Loading ${targetId}...`);
+            }
+        }
+    </script>
+</body>
+</html>
