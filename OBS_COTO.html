@@ -764,6 +764,7 @@
             port: 8080,
             endpoint: '/',
             autoReconnect: true,
+            subscribe: '*', // Subscribe to ALL events for Debugger
             onData: (data) => {
                 // Forward to debug handler
                 if (window.handleDebugData) window.handleDebugData(data);
@@ -897,7 +898,8 @@
         // EVENT HANDLERS
         client.on('Connect', () => {
             console.log('TCOTO: Connected to Streamer.bot');
-            client.subscribe({ "Twitch": ["Follow", "Cheer", "Subscribe", "ReSubscribe", "GiftSubscription", "Subscription", "GiftSub", "Sub", "Raid"] });
+            // client.subscribe(...) removed because 'subscribe: "*"' in config handles everything.
+
             // Fetch Initial Total Follower Count
             client.request('GetBroadcaster', {}).then(resp => {
                 const count = resp.followerCount || resp.follower_count || resp.followercount || resp.totalFollowers || 0;
