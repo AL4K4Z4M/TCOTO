@@ -304,12 +304,12 @@
                 const x = Math.random() * (window.innerWidth - 100) + 50;
                 const isDuck = Math.random() < 0.5;
 
-                // Random Scale: 0.5x to 2.0x
-                const scaleMult = 0.5 + Math.random() * 1.5;
+                // Random Scale: 1.0x to 2.5x (Bigger sizes requested)
+                const scaleMult = 1.0 + Math.random() * 1.5;
 
                 let body;
                 if (isDuck) {
-                    const size = 50 * scaleMult;
+                    const size = 60 * scaleMult; // Increased base from 50 to 60
                     body = Bodies.circle(x, -100, size/2, {
                         restitution: 0.9, density: 0.001, friction: 0.05,
                         render: { sprite: { texture: duckTexturePath, xScale: size/512, yScale: size/512 } }
@@ -317,8 +317,8 @@
                     body.bodyType = 'duck';
                     body.visualSize = size;
                 } else {
-                    const w = 70 * scaleMult;
-                    const h = 50 * scaleMult;
+                    const w = 80 * scaleMult; // Increased base from 70 to 80
+                    const h = 60 * scaleMult; // Increased base from 50 to 60
                     body = Bodies.rectangle(x, -100, w, h, {
                         restitution: 0.1, density: 0.05, friction: 0.5,
                         render: { sprite: { texture: toasterTexturePath, xScale: w/500, yScale: h/500 } }
