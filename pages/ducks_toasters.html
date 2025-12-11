@@ -38,7 +38,7 @@
             display: flex;
             flex-direction: column;
             gap: 5px;
-            pointer-events: none;
+            pointer-events: auto; /* Allow clicking test buttons */
         }
 
         .status-msg {
@@ -52,6 +52,24 @@
         }
         .status-error { color: #ff5555; }
         .status-warn { color: #ffff55; }
+        .status-event { color: #55ffff; }
+
+        /* Controls */
+        #controls {
+            margin-top: 5px;
+            display: flex;
+            gap: 5px;
+        }
+        .debug-btn {
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 5px 10px;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .debug-btn:hover { background: #eee; }
 
         /* Click to Start Overlay */
         #click-overlay {
@@ -89,6 +107,10 @@
 
     <div id="status-overlay">
         <div class="status-msg">Initializing...</div>
+        <div id="controls">
+            <button class="debug-btn" onclick="testSound()">TEST SOUND 🔊</button>
+            <button class="debug-btn" onclick="spawnEvent('TestUser')">SPAWN 🦆</button>
+        </div>
     </div>
 
     <div id="click-overlay" onclick="enableAudio()">
@@ -100,59 +122,73 @@
             // --- LOGGER ---
             function log(msg, type='info') {
                 const el = document.getElementById('status-overlay');
+
+                // Add new message before controls
+                const controls = document.getElementById('controls');
+
                 const line = document.createElement('div');
                 line.className = 'status-msg';
                 if (type === 'error') line.classList.add('status-error');
                 if (type === 'warn') line.classList.add('status-warn');
+                if (type === 'event') line.classList.add('status-event');
                 line.innerText = msg;
-                el.appendChild(line);
 
-                // Keep only last 10 lines
-                while (el.children.length > 10) el.removeChild(el.firstChild);
+                el.insertBefore(line, controls);
+
+                // Keep only last 10 lines (excluding controls)
+                const msgs = el.querySelectorAll('.status-msg');
+                if (msgs.length > 10) {
+                    el.removeChild(msgs[0]);
+                }
                 console.log(`[Ducks] ${msg}`);
             }
 
-            // --- AUDIO CONTEXT SETUP (Web Audio API) ---
-            var AudioContext = window.AudioContext || window.webkitAudioContext;
-            var audioCtx = new AudioContext();
-
-            // --- ASSET LOADER ---
+            // --- HTML5 AUDIO LOADER ---
+            // Reverted to HTML5 Audio to avoid CORS issues with fetch() on file://
             const ASSETS = {};
             const ASSET_PATHS = [
-                'assets/',       // Try relative to page first (pages/assets/)
-                '../assets/'     // Try relative to root (assets/)
+                'assets/',
+                '../assets/'
             ];
 
-            function loadAudioBuffer(key, filename) {
+            function loadAudio(key, filename) {
                 return new Promise((resolve, reject) => {
                     let attempt = 0;
 
                     function tryLoad() {
                         if (attempt >= ASSET_PATHS.length) {
                             log(`Failed to load ${filename}`, 'error');
-                            ASSETS[key] = null; // Mark as failed
+                            ASSETS[key] = null;
                             resolve(null);
                             return;
                         }
 
                         const path = ASSET_PATHS[attempt] + filename;
+                        const audio = new Audio();
+                        audio.src = path;
 
-                        fetch(path)
-                            .then(response => {
-                                if (!response.ok) throw new Error(response.statusText);
-                                return response.arrayBuffer();
-                            })
-                            .then(buffer => audioCtx.decodeAudioData(buffer))
-                            .then(decodedData => {
-                                log(`Loaded & Decoded: ${filename}`, 'info');
-                                ASSETS[key] = decodedData;
-                                resolve(decodedData);
-                            })
-                            .catch(e => {
-                                // log(`Failed path: ${path} (${e.message})`, 'warn');
-                                attempt++;
-                                tryLoad();
-                            });
+                        // We set preload to auto
+                        audio.preload = "auto";
+                        audio.volume = 0.5;
+
+                        // Check if it loads
+                        audio.oncanplaythrough = () => {
+                            // Prevent multiple fires
+                            audio.oncanplaythrough = null;
+                            audio.onerror = null;
+                            log(`Loaded: ${filename}`, 'info');
+                            ASSETS[key] = audio;
+                            resolve(audio);
+                        };
+
+                        audio.onerror = (e) => {
+                            // Try next path
+                            attempt++;
+                            tryLoad();
+                        };
+
+                        // Force load
+                        audio.load();
                     }
                     tryLoad();
                 });
@@ -179,11 +215,10 @@
 
             // Preload All
             const loaders = [];
-            loaders.push(loadAudioBuffer('toaster', 'toaster.wav'));
-            for(let i=1; i<=6; i++) loaders.push(loadAudioBuffer(`duck${i}`, `duck${i}.wav`));
+            loaders.push(loadAudio('toaster', 'toaster.wav'));
+            for(let i=1; i<=6; i++) loaders.push(loadAudio(`duck${i}`, `duck${i}.wav`));
 
-            // Image paths resolved
-            let duckTexturePath = '../assets/Rubber_Duck.png'; // Default fallback
+            let duckTexturePath = '../assets/Rubber_Duck.png';
             let toasterTexturePath = '../assets/Toaster.png';
 
             loaders.push(loadImagePath('Rubber_Duck.png').then(p => { if(p) duckTexturePath = p; }));
@@ -198,52 +233,54 @@
                 const overlay = document.getElementById('click-overlay');
                 overlay.classList.add('hidden');
 
-                // Resume Context
-                if (audioCtx.state === 'suspended') {
-                    audioCtx.resume().then(() => {
-                        log("Audio Context Resumed");
-                    });
-                } else {
-                    log("Audio Context Running");
+                // Try to play silent
+                if (ASSETS['toaster']) {
+                    ASSETS['toaster'].play()
+                        .then(() => {
+                            ASSETS['toaster'].pause();
+                            ASSETS['toaster'].currentTime = 0;
+                            log("Audio Unlocked");
+                        })
+                        .catch(e => log(`Unlock Failed: ${e.message}`, 'warn'));
                 }
             };
 
-            function playSound(type) {
-                // Ensure context is running
-                if (audioCtx.state === 'suspended') {
-                    document.getElementById('click-overlay').classList.remove('hidden');
-                    return; // Can't play yet
-                }
+            window.testSound = function() {
+                log("Testing Sound...", 'event');
+                playSound('duck');
+            };
 
-                let buffer = null;
+            function playSound(type) {
+                let original = null;
                 if (type === 'toaster') {
-                    buffer = ASSETS['toaster'];
+                    original = ASSETS['toaster'];
                 } else if (type === 'duck') {
-                    // Pick random valid duck sound
                     const available = [];
                     for(let i=1; i<=6; i++) if (ASSETS[`duck${i}`]) available.push(ASSETS[`duck${i}`]);
-
                     if (available.length > 0) {
-                        buffer = available[Math.floor(Math.random() * available.length)];
+                        original = available[Math.floor(Math.random() * available.length)];
                     }
                 }
 
-                if (buffer) {
-                    try {
-                        const source = audioCtx.createBufferSource();
-                        source.buffer = buffer;
+                if (original) {
+                    // Clone to allow overlapping sounds
+                    // Note: cloneNode() on Audio elements works efficiently
+                    const clone = original.cloneNode();
+                    clone.volume = 0.5;
+                    const p = clone.play();
 
-                        // Gain Node for Volume
-                        const gain = audioCtx.createGain();
-                        gain.gain.value = 0.5; // Prevent ear blast
-
-                        source.connect(gain);
-                        gain.connect(audioCtx.destination);
-
-                        source.start(0);
-                    } catch(e) {
-                        log(`Play Error: ${e.message}`, 'error');
+                    if (p !== undefined) {
+                        p.then(() => {
+                            // log(`Played: ${type}`, 'info');
+                        }).catch(e => {
+                            log(`Play Blocked: ${e.message}`, 'error');
+                            if (e.name === 'NotAllowedError') {
+                                document.getElementById('click-overlay').classList.remove('hidden');
+                            }
+                        });
                     }
+                } else {
+                    // log(`No Asset for ${type}`, 'warn');
                 }
             }
 
@@ -253,8 +290,6 @@
                   Events = Matter.Events, Vector = Matter.Vector, Sleeping = Matter.Sleeping;
 
             const engine = Engine.create({ positionIterations: 20, velocityIterations: 20, enableSleeping: true });
-
-            window.engine = engine;
 
             const render = Render.create({
                 element: document.body,
@@ -277,37 +312,6 @@
             const ceiling = Bodies.rectangle(window.innerWidth/2, -500, window.innerWidth, 200, wallOpts);
 
             Composite.add(engine.world, [ground, leftWall, rightWall, ceiling]);
-
-            // --- FLUSH ---
-            var isPitOpen = false;
-            function openPit() {
-                if (isPitOpen) return;
-                isPitOpen = true;
-                Composite.remove(engine.world, ground);
-
-                Composite.allBodies(engine.world).forEach(body => {
-                    if (!body.isStatic) {
-                        Sleeping.set(body, false);
-                        Body.setVelocity(body, { x: 0, y: 0 });
-                        Body.setVelocity(body, { x: (Math.random() - 0.5) * 5, y: 15 });
-                    }
-                });
-
-                setTimeout(() => {
-                    Body.setPosition(ground, { x: window.innerWidth / 2, y: window.innerHeight + 100 });
-                    Body.setVelocity(ground, { x: 0, y: 0 });
-                    Composite.add(engine.world, ground);
-                    isPitOpen = false;
-                }, 5000);
-            }
-
-            // Garbage Collector
-            setInterval(() => {
-                const bodies = Composite.allBodies(engine.world);
-                bodies.forEach(body => {
-                    if (body.position.y > window.innerHeight + 2000) Composite.remove(engine.world, body);
-                });
-            }, 2000);
 
             // --- RENDER TEXT ---
             Events.on(render, 'afterRender', function() {
@@ -350,7 +354,12 @@
                     const impact = speedA + speedB;
 
                     if (impact > 2.0) {
-                        // Sound
+                        // Debug log for heavy impacts to verify physics
+                        if (impact > 10.0) {
+                           // log(`Impact: ${impact.toFixed(1)}`, 'info');
+                        }
+
+                        // Sound logic
                         if (bodyA.bodyType === 'duck' || bodyB.bodyType === 'duck') {
                              if (Math.random() < 0.3) playSound('duck');
                         }
@@ -358,7 +367,7 @@
                              if (Math.random() < 0.3) playSound('toaster');
                         }
 
-                        // Shockwave (Toaster)
+                        // Shockwave
                         const handleShockwave = (originBody) => {
                             if (originBody.bodyType !== 'toaster') return;
                             if (impact < 5.0) return;
@@ -385,7 +394,6 @@
 
             // --- SPAWN LOGIC ---
             function createDuck(x, y, username) {
-                // Size: 0.8x to 1.3x
                 const scaleMult = 0.8 + Math.random() * 0.5;
                 const baseSize = 50;
                 const size = baseSize * scaleMult;
@@ -396,7 +404,7 @@
                     friction: 0.05,
                     render: {
                         sprite: {
-                            texture: duckTexturePath, // Resolved path
+                            texture: duckTexturePath,
                             xScale: (size / 512),
                             yScale: (size / 512)
                         }
@@ -410,22 +418,17 @@
             }
 
             function createToaster(x, y, username) {
-                // Size: 0.8x to 1.5x
                 const scaleMult = 0.8 + Math.random() * 0.7;
-
-                const baseWidth = 70;
-                const baseHeight = 50;
-
-                const width = baseWidth * scaleMult;
-                const height = baseHeight * scaleMult;
+                const width = 70 * scaleMult;
+                const height = 50 * scaleMult;
 
                 const body = Bodies.rectangle(x, y, width, height, {
                     restitution: 0.1,
-                    density: 0.05, // Heavy
+                    density: 0.05,
                     friction: 0.5,
                     render: {
                         sprite: {
-                            texture: toasterTexturePath, // Resolved path
+                            texture: toasterTexturePath,
                             xScale: width / 500,
                             yScale: height / 500
                         }
@@ -444,17 +447,10 @@
             function spawnEvent(username) {
                 const x = Math.random() * (window.innerWidth - 100) + 50;
                 const y = -100;
-
                 const isDuck = Math.random() < 0.5;
-                let body;
-
-                if (isDuck) {
-                    body = createDuck(x, y, username);
-                } else {
-                    body = createToaster(x, y, username);
-                }
-
+                const body = isDuck ? createDuck(x, y, username) : createToaster(x, y, username);
                 Composite.add(engine.world, body);
+                // log(`Spawned: ${isDuck ? 'Duck' : 'Toaster'}`, 'event');
             }
 
             // --- RUNNER ---
@@ -487,7 +483,7 @@
             client.on('Twitch.Cheer', (p) => spawnEvent(getName(p)));
 
             window.spawnEvent = spawnEvent;
-            window.openPit = openPit;
+            window.openPit = () => {}; // Placeholder
 
         })();
     </script>
