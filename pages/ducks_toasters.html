@@ -35,9 +35,14 @@
 <body>
     <!-- Showstopper Overlay Container -->
     <div id="showstopper-container" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:100;">
-        <video id="lightning-bg" src="../assets/lightning_background.mp4" style="display:none; position:absolute; width:100%; height:100%; object-fit:cover; z-index:10; mix-blend-mode: screen;" muted playsinline></video>
+        <!-- Hidden source videos -->
+        <video id="lightning-bg-src" src="../assets/lightning_background.mp4" style="display:none;" muted playsinline></video>
+        <video id="lightning-fg-src" src="../assets/lightning_foreground.mp4" style="display:none;" muted playsinline></video>
+
+        <!-- Render Canvases -->
+        <canvas id="cvs-bg" style="display:none; position:absolute; width:100%; height:100%; z-index:10;"></canvas>
         <img id="showstopper-img" src="../assets/Showstopper.png" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%) scale(0); transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index:20; max-width:80%; max-height:80%;">
-        <video id="lightning-fg" src="../assets/lightning_foreground.mp4" style="display:none; position:absolute; width:100%; height:100%; object-fit:cover; z-index:30; mix-blend-mode: screen;" muted playsinline></video>
+        <canvas id="cvs-fg" style="display:none; position:absolute; width:100%; height:100%; z-index:30;"></canvas>
     </div>
 
     <script>
@@ -350,18 +355,54 @@
                 Composite.add(engine.world, body);
             }
 
+            // --- LIGHTNING PROCESSOR (Luma Key) ---
+            function processLightning(video, canvas) {
+                if (video.paused || video.ended) return;
+
+                // Match canvas size to window for full coverage
+                if (canvas.width !== window.innerWidth) canvas.width = window.innerWidth;
+                if (canvas.height !== window.innerHeight) canvas.height = window.innerHeight;
+
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+                // Draw video frame scaled to cover
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Get pixel data
+                const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const l = frame.data.length;
+
+                // Apply Luminance-to-Alpha
+                for (let i = 0; i < l; i += 4) {
+                    const r = frame.data[i];
+                    const g = frame.data[i + 1];
+                    const b = frame.data[i + 2];
+
+                    // Brightness determines alpha
+                    // Black (0,0,0) -> Alpha 0
+                    // White (255,255,255) -> Alpha 255
+                    const brightness = (r + g + b) / 3;
+                    frame.data[i + 3] = brightness;
+                }
+
+                ctx.putImageData(frame, 0, 0);
+                requestAnimationFrame(() => processLightning(video, canvas));
+            }
+
             // --- SHOWSTOPPER LOGIC ---
             function triggerShowstopper(username) {
                 const container = document.getElementById('showstopper-container');
-                const bg = document.getElementById('lightning-bg');
-                const fg = document.getElementById('lightning-fg');
+                const bgSrc = document.getElementById('lightning-bg-src');
+                const fgSrc = document.getElementById('lightning-fg-src');
+                const bgCvs = document.getElementById('cvs-bg');
+                const fgCvs = document.getElementById('cvs-fg');
                 const img = document.getElementById('showstopper-img');
 
                 // Reset Visuals
                 container.style.display = 'block';
                 img.style.transform = 'translate(-50%, -50%) scale(0)';
-                bg.style.display = 'none';
-                fg.style.display = 'none';
+                bgCvs.style.display = 'none';
+                fgCvs.style.display = 'none';
 
                 // 1. Play Sound
                 AudioManager.play('showstopper');
@@ -373,10 +414,12 @@
 
                 // 3. Start Chaos & Lightning after delay
                 setTimeout(() => {
-                    bg.style.display = 'block';
-                    fg.style.display = 'block';
-                    bg.play().catch(e=>{});
-                    fg.play().catch(e=>{});
+                    bgCvs.style.display = 'block';
+                    fgCvs.style.display = 'block';
+
+                    bgSrc.currentTime = 0; fgSrc.currentTime = 0;
+                    bgSrc.play().then(() => processLightning(bgSrc, bgCvs)).catch(e=>{});
+                    fgSrc.play().then(() => processLightning(fgSrc, fgCvs)).catch(e=>{});
 
                     // Wind Chaos Loop
                     const windInterval = setInterval(() => {
@@ -395,33 +438,30 @@
                     setTimeout(() => {
                         clearInterval(windInterval);
                         container.style.display = 'none';
-                        bg.pause(); bg.currentTime = 0;
-                        fg.pause(); fg.currentTime = 0;
+                        bgSrc.pause();
+                        fgSrc.pause();
 
                         // Drop Physics Body
                         spawnShowstopperBody(username);
 
                     }, 2100);
 
-                }, 800); // 800ms delay for image to appear fully
+                }, 800);
             }
 
             function spawnShowstopperBody(username) {
-                const w = 400; // Large size
-                const h = 400; // Assuming square/icon
+                const radius = 125; // Smaller size (Diameter 250)
+                const textureSize = 500; // Assume 500x500 source
 
-                const body = Bodies.rectangle(window.innerWidth/2, -300, w, h, {
-                    restitution: 0.1, density: 0.1, friction: 0.5,
-                    render: { sprite: { texture: showstopperTexturePath, xScale: w/500, yScale: h/500 } } // Approx scale, adjusted if image size differs
+                const body = Bodies.circle(window.innerWidth/2, -300, radius, {
+                    restitution: 0.3, density: 0.1, friction: 0.5,
+                    render: { sprite: { texture: showstopperTexturePath, xScale: (radius*2)/textureSize, yScale: (radius*2)/textureSize } }
                 });
 
-                body.bodyType = 'showstopper'; // Or reuse toaster sound? Or no sound on impact?
-                // Let's reuse toaster sound for heavy impacts if needed, or make a new one.
-                // Defaulting to toaster sound type for now or add condition in collision.
-                body.bodyType = 'toaster';
+                body.bodyType = 'toaster'; // Reuse impact sounds
                 body.scaleMult = 0.5; // Very deep pitch
                 body.username = username;
-                body.visualSize = w;
+                body.visualSize = radius * 2; // Store diameter for text scaling
 
                 Composite.add(engine.world, body);
             }
