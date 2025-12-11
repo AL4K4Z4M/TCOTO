@@ -487,8 +487,10 @@
                         "GiftSubscription",
                         "Subscription",
                         "GiftSub",
-                        "Sub"
-                    ]
+                        "Sub",
+                        "ChatMessage"
+                    ],
+                    "General": ["Custom"]
                 });
             });
 
@@ -539,6 +541,20 @@
                     setTimeout(() => Composite.add(engine.world, ground), 5000);
                 }
             };
+
+            // --- FLUSH COMMANDS ---
+            client.on('Twitch.ChatMessage', (payload) => {
+                const d = getSafeData(payload);
+                const msg = d.message?.message || d.message || "";
+                if (msg.trim().toLowerCase() === "!flushpit") {
+                    window.openPit();
+                }
+            });
+
+            client.on('General.Custom', (payload) => {
+                const raw = JSON.stringify(payload);
+                if (raw.includes("OpenPit")) window.openPit();
+            });
 
         })();
     </script>
