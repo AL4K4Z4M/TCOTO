@@ -434,13 +434,59 @@
 
             // --- STREAMER.BOT ---
             const client = new StreamerbotClient({ host: '127.0.0.1', port: 8080, endpoint: '/', autoReconnect: true });
+
             client.on('Connect', () => {
-                client.subscribe({ "Twitch": ["Follow", "Subscription", "Cheer", "GiftSub", "ReSubscribe"] });
+                client.subscribe({
+                    "Twitch": [
+                        "Follow",
+                        "Cheer",
+                        "Subscribe",
+                        "ReSubscribe",
+                        "GiftSubscription",
+                        "Subscription",
+                        "GiftSub",
+                        "Sub"
+                    ]
+                });
             });
-            const getName = (p) => (p.data || p).user_name || (p.data || p).user || "User";
+
+            function getSafeData(payload) { return payload.data ? payload.data : payload; }
+
+            function getName(payload) {
+                const d = getSafeData(payload);
+                if (typeof d.user === 'string') return d.user;
+                if (d.user_name) return d.user_name;
+                if (d.display_name) return d.display_name;
+                if (d.displayName) return d.displayName;
+                if (d.userName) return d.userName;
+
+                if (d.user && typeof d.user === 'object') {
+                    if (d.user.name) return d.user.name;
+                    if (d.user.display_name) return d.user.display_name;
+                    if (d.user.displayName) return d.user.displayName;
+                    if (d.user.login) return d.user.login;
+                }
+
+                if (d.sender && typeof d.sender === 'object') {
+                     if (d.sender.name) return d.sender.name;
+                     if (d.sender.display_name) return d.sender.display_name;
+                }
+
+                if (d.name) return d.name;
+                return "User";
+            }
+
             client.on('Twitch.Follow', (p) => spawnEvent(getName(p)));
-            client.on('Twitch.Subscription', (p) => triggerShowstopper(getName(p)));
             client.on('Twitch.Cheer', (p) => spawnEvent(getName(p)));
+
+            // Handle all sub variations
+            const handleSub = (p) => triggerShowstopper(getName(p));
+            client.on('Twitch.Subscribe', handleSub);
+            client.on('Twitch.ReSubscribe', handleSub);
+            client.on('Twitch.GiftSubscription', handleSub);
+            client.on('Twitch.Subscription', handleSub);
+            client.on('Twitch.GiftSub', handleSub);
+            client.on('Twitch.Sub', handleSub);
 
             window.spawnEvent = spawnEvent;
             window.openPit = () => {
