@@ -496,12 +496,6 @@
                 <span class="stat-label">Last Cheer:</span>
                 <span id="val-last-cheer" class="stat-value">None</span>
             </div>
-            <!-- 5. Viewer Count -->
-            <div id="stat-viewer-count" class="stat-item">
-                <span class="stat-icon">👁️</span>
-                <span class="stat-label">Viewers:</span>
-                <span id="val-viewer-count" class="stat-value">0</span>
-            </div>
         </div>
 
         <!-- 1. DYNAMIC FRAMES LAYER -->
@@ -786,6 +780,7 @@
         const OVERLAYS = [
             { id: 'tetris',  name: 'Tetris',  icon: '🧩', file: 'pages/tetris.html' },
             { id: 'ballpit', name: 'Ballpit', icon: '🎱', file: 'pages/ballpit.html' },
+            { id: 'ducks',   name: 'Ducks & Toasters', icon: '🦆', file: 'pages/ducks_toasters.html' },
         ];
 
         // Internal State
@@ -812,8 +807,7 @@
             { id: 'stat-followers-session', label: 'Session Followers', enabled: true },
             { id: 'stat-last-follower', label: 'Last Follower', enabled: true },
             { id: 'stat-last-sub', label: 'Last Subscriber', enabled: true },
-            { id: 'stat-last-cheer', label: 'Last Cheer', enabled: true },
-            { id: 'stat-viewer-count', label: 'Viewer Count', enabled: true }
+            { id: 'stat-last-cheer', label: 'Last Cheer', enabled: true }
         ];
 
         // HELPER FUNCTIONS FROM REFERENCE
@@ -1006,13 +1000,6 @@
             if (document.getElementById('alert-raid').checked) {
                 showNotification("INCOMING RAID", `${raider} - ${viewers} Viewers`);
             }
-        });
-
-        // 5. VIEWER COUNT
-        client.on('Twitch.ViewerCountUpdate', (payload) => {
-            const d = getSafeData(payload);
-            const count = d.viewerCount || 0;
-            updateText('val-viewer-count', count);
         });
 
         // --- MAIN INITIALIZATION ---
