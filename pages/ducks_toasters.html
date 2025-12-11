@@ -112,6 +112,10 @@
                 console.log(`[Ducks] ${msg}`);
             }
 
+            // --- AUDIO CONTEXT SETUP (Web Audio API) ---
+            var AudioContext = window.AudioContext || window.webkitAudioContext;
+            var audioCtx = new AudioContext();
+
             // --- ASSET LOADER ---
             const ASSETS = {};
             const ASSET_PATHS = [
@@ -119,7 +123,7 @@
                 '../assets/'     // Try relative to root (assets/)
             ];
 
-            function loadAudio(key, filename) {
+            function loadAudioBuffer(key, filename) {
                 return new Promise((resolve, reject) => {
                     let attempt = 0;
 
@@ -132,22 +136,23 @@
                         }
 
                         const path = ASSET_PATHS[attempt] + filename;
-                        const audio = new Audio(path);
 
-                        audio.addEventListener('canplaythrough', () => {
-                            log(`Loaded: ${filename} (${path})`, 'info');
-                            ASSETS[key] = audio;
-                            resolve(audio);
-                        }, { once: true });
-
-                        audio.addEventListener('error', (e) => {
-                            // log(`Failed path: ${path}`, 'warn');
-                            attempt++;
-                            tryLoad();
-                        }, { once: true });
-
-                        // Force load
-                        audio.load();
+                        fetch(path)
+                            .then(response => {
+                                if (!response.ok) throw new Error(response.statusText);
+                                return response.arrayBuffer();
+                            })
+                            .then(buffer => audioCtx.decodeAudioData(buffer))
+                            .then(decodedData => {
+                                log(`Loaded & Decoded: ${filename}`, 'info');
+                                ASSETS[key] = decodedData;
+                                resolve(decodedData);
+                            })
+                            .catch(e => {
+                                // log(`Failed path: ${path} (${e.message})`, 'warn');
+                                attempt++;
+                                tryLoad();
+                            });
                     }
                     tryLoad();
                 });
@@ -174,8 +179,8 @@
 
             // Preload All
             const loaders = [];
-            loaders.push(loadAudio('toaster', 'toaster.wav'));
-            for(let i=1; i<=6; i++) loaders.push(loadAudio(`duck${i}`, `duck${i}.wav`));
+            loaders.push(loadAudioBuffer('toaster', 'toaster.wav'));
+            for(let i=1; i<=6; i++) loaders.push(loadAudioBuffer(`duck${i}`, `duck${i}.wav`));
 
             // Image paths resolved
             let duckTexturePath = '../assets/Rubber_Duck.png'; // Default fallback
@@ -186,47 +191,59 @@
 
             Promise.all(loaders).then(() => {
                 log("Assets Loading Complete");
-                // Auto-hide click overlay if audio context is somehow already running (rare)
-                // But usually we need interaction.
             });
 
-            // --- AUDIO SYSTEM ---
+            // --- AUDIO CONTROL ---
             window.enableAudio = function() {
                 const overlay = document.getElementById('click-overlay');
                 overlay.classList.add('hidden');
 
-                // Resume Context if any
-                // Also play a silent sound on all tracks to unlock them?
-                if (ASSETS['toaster']) ASSETS['toaster'].play().then(() => ASSETS['toaster'].pause()).catch(e => {});
-
-                log("Audio Enabled by User");
+                // Resume Context
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume().then(() => {
+                        log("Audio Context Resumed");
+                    });
+                } else {
+                    log("Audio Context Running");
+                }
             };
 
             function playSound(type) {
-                let sound = null;
+                // Ensure context is running
+                if (audioCtx.state === 'suspended') {
+                    document.getElementById('click-overlay').classList.remove('hidden');
+                    return; // Can't play yet
+                }
+
+                let buffer = null;
                 if (type === 'toaster') {
-                    sound = ASSETS['toaster'];
+                    buffer = ASSETS['toaster'];
                 } else if (type === 'duck') {
                     // Pick random valid duck sound
                     const available = [];
                     for(let i=1; i<=6; i++) if (ASSETS[`duck${i}`]) available.push(ASSETS[`duck${i}`]);
 
                     if (available.length > 0) {
-                        sound = available[Math.floor(Math.random() * available.length)];
+                        buffer = available[Math.floor(Math.random() * available.length)];
                     }
                 }
 
-                if (sound) {
-                    const clone = sound.cloneNode(true);
-                    clone.volume = 0.5; // Prevent ear blast
-                    clone.play().catch(e => {
-                        if (e.name === 'NotAllowedError') {
-                            log("Autoplay Blocked - Click Screen!", 'error');
-                            document.getElementById('click-overlay').classList.remove('hidden');
-                        } else {
-                            // log(`Play Error: ${e.message}`, 'error');
-                        }
-                    });
+                if (buffer) {
+                    try {
+                        const source = audioCtx.createBufferSource();
+                        source.buffer = buffer;
+
+                        // Gain Node for Volume
+                        const gain = audioCtx.createGain();
+                        gain.gain.value = 0.5; // Prevent ear blast
+
+                        source.connect(gain);
+                        gain.connect(audioCtx.destination);
+
+                        source.start(0);
+                    } catch(e) {
+                        log(`Play Error: ${e.message}`, 'error');
+                    }
                 }
             }
 
@@ -237,7 +254,6 @@
 
             const engine = Engine.create({ positionIterations: 20, velocityIterations: 20, enableSleeping: true });
 
-            // Expose engine for debugging/verification
             window.engine = engine;
 
             const render = Render.create({
