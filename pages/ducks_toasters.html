@@ -36,11 +36,16 @@
     <script>
         (function() {
             // --- 0. ASSET PRELOADING ---
-            // Audio
-            const soundToaster = new Audio('assets/toaster.wav');
+            // Audio - Using ../assets/ based on ballpit example
+            // We use ../assets/ because this file is in pages/ and assets is likely in root/assets/
+            const soundToaster = new Audio('../assets/toaster.wav');
+            soundToaster.addEventListener('error', (e) => console.error("Error loading toaster.wav. Check if file exists at ../assets/toaster.wav", e));
+
             const soundDucks = [];
             for(let i=1; i<=6; i++) {
-                soundDucks.push(new Audio(`assets/duck${i}.wav`));
+                const s = new Audio(`../assets/duck${i}.wav`);
+                s.addEventListener('error', (e) => console.error(`Error loading duck${i}.wav`, e));
+                soundDucks.push(s);
             }
 
             // --- 1. PHYSICS ENGINE SETUP ---
@@ -49,6 +54,9 @@
                   Events = Matter.Events, Vector = Matter.Vector, Sleeping = Matter.Sleeping;
 
             const engine = Engine.create({ positionIterations: 20, velocityIterations: 20, enableSleeping: true });
+
+            // Expose engine for debugging/verification
+            window.engine = engine;
 
             const render = Render.create({
                 element: document.body,
@@ -68,7 +76,7 @@
             const ground = Bodies.rectangle(window.innerWidth/2, window.innerHeight + 100, window.innerWidth, 200, wallOpts);
             const leftWall = Bodies.rectangle(-100, window.innerHeight/2, 200, window.innerHeight * 5, wallOpts);
             const rightWall = Bodies.rectangle(window.innerWidth + 100, window.innerHeight/2, 200, window.innerHeight * 5, wallOpts);
-            // No ceiling for this one, or maybe keep it? Ballpit has one. I'll keep it high.
+            // CEILING at -500 to keep balls inside but allow drop
             const ceiling = Bodies.rectangle(window.innerWidth/2, -500, window.innerWidth, 200, wallOpts);
 
             Composite.add(engine.world, [ground, leftWall, rightWall, ceiling]);
@@ -114,9 +122,8 @@
                 for (let i = 0; i < bodies.length; i += 1) {
                     const body = bodies[i];
                     if (body.username) {
-                        // Assuming radius for text scaling purposes
-                        // For rectangles (toasters), we can use width/2 approx
-                        const dim = body.circleRadius ? body.circleRadius : 35;
+                        // Use visual size for text scaling
+                        const dim = body.visualSize || 35;
 
                         const mainSize = Math.max(12, dim * 0.5);
 
@@ -141,18 +148,23 @@
             // --- SOUND & COLLISION LOGIC ---
 
             function playSound(type) {
-                // Clone node to allow overlapping sounds
                 try {
                     if (type === 'toaster') {
-                         soundToaster.cloneNode(true).play().catch(e => {});
+                         soundToaster.cloneNode(true).play().catch(e => console.warn("Audio play failed:", e));
                     } else if (type === 'duck') {
                         const idx = Math.floor(Math.random() * soundDucks.length);
-                        soundDucks[idx].cloneNode(true).play().catch(e => {});
+                        soundDucks[idx].cloneNode(true).play().catch(e => console.warn("Audio play failed:", e));
                     }
                 } catch(e) {
-                    // Audio context issues sometimes
+                    console.error("Audio Context Error:", e);
                 }
             }
+
+            // Resume audio context on click (just in case)
+            window.addEventListener('click', () => {
+                // Dummy play to unlock audio if needed
+                soundToaster.play().then(() => soundToaster.pause()).catch(() => {});
+            });
 
             Events.on(engine, 'collisionStart', (event) => {
                 event.pairs.forEach((pair) => {
@@ -170,8 +182,6 @@
 
                         // Handle Sound
                         if (bodyA.bodyType === 'duck' || bodyB.bodyType === 'duck') {
-                             // Debounce sound per tick slightly? Not bothering for now.
-                             // 20% chance to play sound to reduce chaos?
                              if (Math.random() < 0.3) playSound('duck');
                         }
                         if (bodyA.bodyType === 'toaster' || bodyB.bodyType === 'toaster') {
@@ -185,8 +195,8 @@
                             if (impact < 5.0) return;
 
                             const center = originBody.position;
-                            const range = 150;
-                            const forceMag = 0.05 * (impact / 10); // Scale with impact
+                            const range = 250;
+                            const forceMag = 0.1 * (impact / 10); // Scale with impact
 
                             Composite.allBodies(engine.world).forEach(b => {
                                 if (b === originBody || b.isStatic) return;
@@ -207,56 +217,63 @@
             // --- SPAWN LOGIC ---
 
             function createDuck(x, y, username) {
-                // Duck: Circle or Rounded Rectangle. Using Circle for bouncy feel usually better, but sprites are images.
-                // Assuming png is roughly square or we scale it.
-                // Duck should be light and bouncy.
-                const size = 50;
+                // Random Size Multiplier (0.8x to 1.3x)
+                const scaleMult = 0.8 + Math.random() * 0.5;
+                const baseSize = 50;
+                const size = baseSize * scaleMult;
+
                 const body = Bodies.circle(x, y, size/2, {
                     restitution: 0.9, // Very bouncy
                     density: 0.001,   // Light
                     friction: 0.05,
                     render: {
                         sprite: {
-                            texture: 'assets/Rubber_Duck.png',
-                            xScale: (size / 512), // Assuming roughly 512px image, adjusting scale dynamically would be better but simple for now
+                            texture: '../assets/Rubber_Duck.png', // Corrected path
+                            xScale: (size / 512), // Assuming roughly 512px image
                             yScale: (size / 512)
                         }
                     }
                 });
 
-                // Adjust scale if image loads (Optional dynamic scaling) - sticking to fixed for now
-                // Or try to roughly guess ratio. I'll set a standard scale assuming ~256-512px images.
-                // Let's set the scale to fit 'size'.
-                const targetSize = size * 2; // Sprite size visual
-                body.render.sprite.xScale = targetSize / 500; // Guessing source is 500px
+                // Adjust scale assumption if needed
+                const targetSize = size * 2;
+                body.render.sprite.xScale = targetSize / 500;
                 body.render.sprite.yScale = targetSize / 500;
 
                 body.username = username;
                 body.bodyType = 'duck';
+                body.visualSize = size;
                 return body;
             }
 
             function createToaster(x, y, username) {
-                // Toaster: Rectangle. Heavy.
-                const width = 70;
-                const height = 50;
+                // Random Size Multiplier (0.8x to 1.5x)
+                const scaleMult = 0.8 + Math.random() * 0.7;
+
+                const baseWidth = 70;
+                const baseHeight = 50;
+
+                const width = baseWidth * scaleMult;
+                const height = baseHeight * scaleMult;
+
                 const body = Bodies.rectangle(x, y, width, height, {
                     restitution: 0.1, // Not bouncy
-                    density: 0.05,    // Heavy (50x duck)
+                    density: 0.05,    // Heavy
                     friction: 0.5,
                     render: {
                         sprite: {
-                            texture: 'assets/Toaster.png',
+                            texture: '../assets/Toaster.png', // Corrected path
                             xScale: width / 500,
                             yScale: height / 500
                         }
                     }
                 });
-                body.render.sprite.xScale = (width * 1.5) / 500; // Visual adjustment
+                body.render.sprite.xScale = (width * 1.5) / 500;
                 body.render.sprite.yScale = (height * 1.5) / 500;
 
                 body.username = username;
                 body.bodyType = 'toaster';
+                body.visualSize = width; // For text scaling
                 return body;
             }
 
@@ -315,9 +332,6 @@
             client.on('Twitch.GiftSubscription', (payload) => { spawnEvent(getName(payload)); });
             client.on('Twitch.Cheer', (payload) => {
                 const d = getSafeData(payload);
-                const bits = d.bits || 1;
-                // Maybe spawn multiple for big cheers?
-                // Stick to 1 for now per request requirements "spawn ... Rubber_Duck.png and Toaster.png"
                 spawnEvent(getName(payload));
             });
 
