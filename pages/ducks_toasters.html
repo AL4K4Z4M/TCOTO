@@ -19,7 +19,6 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            /* Transparent background for OBS */
             background-color: transparent;
             font-family: "Barlow", sans-serif;
         }
@@ -29,26 +28,209 @@
             width: 100%;
             height: 100%;
         }
+
+        /* Debug & Status Overlay */
+        #status-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            pointer-events: none;
+        }
+
+        .status-msg {
+            background: rgba(0, 0, 0, 0.7);
+            color: #00ff00;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+            max-width: 400px;
+        }
+        .status-error { color: #ff5555; }
+        .status-warn { color: #ffff55; }
+
+        /* Click to Start Overlay */
+        #click-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+        #click-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .click-btn {
+            background: white;
+            padding: 20px 40px;
+            border-radius: 50px;
+            font-size: 24px;
+            font-weight: 800;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
     </style>
 </head>
 <body>
 
+    <div id="status-overlay">
+        <div class="status-msg">Initializing...</div>
+    </div>
+
+    <div id="click-overlay" onclick="enableAudio()">
+        <div class="click-btn">CLICK TO ENABLE AUDIO 🔊</div>
+    </div>
+
     <script>
         (function() {
-            // --- 0. ASSET PRELOADING ---
-            // Audio - Using ../assets/ based on ballpit example
-            // We use ../assets/ because this file is in pages/ and assets is likely in root/assets/
-            const soundToaster = new Audio('../assets/toaster.wav');
-            soundToaster.addEventListener('error', (e) => console.error("Error loading toaster.wav. Check if file exists at ../assets/toaster.wav", e));
+            // --- LOGGER ---
+            function log(msg, type='info') {
+                const el = document.getElementById('status-overlay');
+                const line = document.createElement('div');
+                line.className = 'status-msg';
+                if (type === 'error') line.classList.add('status-error');
+                if (type === 'warn') line.classList.add('status-warn');
+                line.innerText = msg;
+                el.appendChild(line);
 
-            const soundDucks = [];
-            for(let i=1; i<=6; i++) {
-                const s = new Audio(`../assets/duck${i}.wav`);
-                s.addEventListener('error', (e) => console.error(`Error loading duck${i}.wav`, e));
-                soundDucks.push(s);
+                // Keep only last 10 lines
+                while (el.children.length > 10) el.removeChild(el.firstChild);
+                console.log(`[Ducks] ${msg}`);
             }
 
-            // --- 1. PHYSICS ENGINE SETUP ---
+            // --- ASSET LOADER ---
+            const ASSETS = {};
+            const ASSET_PATHS = [
+                'assets/',       // Try relative to page first (pages/assets/)
+                '../assets/'     // Try relative to root (assets/)
+            ];
+
+            function loadAudio(key, filename) {
+                return new Promise((resolve, reject) => {
+                    let attempt = 0;
+
+                    function tryLoad() {
+                        if (attempt >= ASSET_PATHS.length) {
+                            log(`Failed to load ${filename}`, 'error');
+                            ASSETS[key] = null; // Mark as failed
+                            resolve(null);
+                            return;
+                        }
+
+                        const path = ASSET_PATHS[attempt] + filename;
+                        const audio = new Audio(path);
+
+                        audio.addEventListener('canplaythrough', () => {
+                            log(`Loaded: ${filename} (${path})`, 'info');
+                            ASSETS[key] = audio;
+                            resolve(audio);
+                        }, { once: true });
+
+                        audio.addEventListener('error', (e) => {
+                            // log(`Failed path: ${path}`, 'warn');
+                            attempt++;
+                            tryLoad();
+                        }, { once: true });
+
+                        // Force load
+                        audio.load();
+                    }
+                    tryLoad();
+                });
+            }
+
+            function loadImagePath(filename) {
+                return new Promise((resolve) => {
+                    let attempt = 0;
+                    function tryLoad() {
+                        if (attempt >= ASSET_PATHS.length) {
+                            log(`Failed to load image ${filename}`, 'error');
+                            resolve(null);
+                            return;
+                        }
+                        const path = ASSET_PATHS[attempt] + filename;
+                        const img = new Image();
+                        img.onload = () => resolve(path);
+                        img.onerror = () => { attempt++; tryLoad(); };
+                        img.src = path;
+                    }
+                    tryLoad();
+                });
+            }
+
+            // Preload All
+            const loaders = [];
+            loaders.push(loadAudio('toaster', 'toaster.wav'));
+            for(let i=1; i<=6; i++) loaders.push(loadAudio(`duck${i}`, `duck${i}.wav`));
+
+            // Image paths resolved
+            let duckTexturePath = '../assets/Rubber_Duck.png'; // Default fallback
+            let toasterTexturePath = '../assets/Toaster.png';
+
+            loaders.push(loadImagePath('Rubber_Duck.png').then(p => { if(p) duckTexturePath = p; }));
+            loaders.push(loadImagePath('Toaster.png').then(p => { if(p) toasterTexturePath = p; }));
+
+            Promise.all(loaders).then(() => {
+                log("Assets Loading Complete");
+                // Auto-hide click overlay if audio context is somehow already running (rare)
+                // But usually we need interaction.
+            });
+
+            // --- AUDIO SYSTEM ---
+            window.enableAudio = function() {
+                const overlay = document.getElementById('click-overlay');
+                overlay.classList.add('hidden');
+
+                // Resume Context if any
+                // Also play a silent sound on all tracks to unlock them?
+                if (ASSETS['toaster']) ASSETS['toaster'].play().then(() => ASSETS['toaster'].pause()).catch(e => {});
+
+                log("Audio Enabled by User");
+            };
+
+            function playSound(type) {
+                let sound = null;
+                if (type === 'toaster') {
+                    sound = ASSETS['toaster'];
+                } else if (type === 'duck') {
+                    // Pick random valid duck sound
+                    const available = [];
+                    for(let i=1; i<=6; i++) if (ASSETS[`duck${i}`]) available.push(ASSETS[`duck${i}`]);
+
+                    if (available.length > 0) {
+                        sound = available[Math.floor(Math.random() * available.length)];
+                    }
+                }
+
+                if (sound) {
+                    const clone = sound.cloneNode(true);
+                    clone.volume = 0.5; // Prevent ear blast
+                    clone.play().catch(e => {
+                        if (e.name === 'NotAllowedError') {
+                            log("Autoplay Blocked - Click Screen!", 'error');
+                            document.getElementById('click-overlay').classList.remove('hidden');
+                        } else {
+                            // log(`Play Error: ${e.message}`, 'error');
+                        }
+                    });
+                }
+            }
+
+            // --- PHYSICS ENGINE SETUP ---
             const Engine = Matter.Engine, Render = Matter.Render, Runner = Matter.Runner,
                   Bodies = Matter.Bodies, Body = Matter.Body, Composite = Matter.Composite,
                   Events = Matter.Events, Vector = Matter.Vector, Sleeping = Matter.Sleeping;
@@ -71,17 +253,16 @@
                 }
             });
 
-            // --- ENVIRONMENT SETUP ---
+            // --- ENVIRONMENT ---
             const wallOpts = { isStatic: true, render: { visible: false } };
             const ground = Bodies.rectangle(window.innerWidth/2, window.innerHeight + 100, window.innerWidth, 200, wallOpts);
             const leftWall = Bodies.rectangle(-100, window.innerHeight/2, 200, window.innerHeight * 5, wallOpts);
             const rightWall = Bodies.rectangle(window.innerWidth + 100, window.innerHeight/2, 200, window.innerHeight * 5, wallOpts);
-            // CEILING at -500 to keep balls inside but allow drop
             const ceiling = Bodies.rectangle(window.innerWidth/2, -500, window.innerWidth, 200, wallOpts);
 
             Composite.add(engine.world, [ground, leftWall, rightWall, ceiling]);
 
-            // --- FLUSH MECHANIC ---
+            // --- FLUSH ---
             var isPitOpen = false;
             function openPit() {
                 if (isPitOpen) return;
@@ -112,7 +293,7 @@
                 });
             }, 2000);
 
-            // --- CUSTOM RENDERER FOR TEXT ---
+            // --- RENDER TEXT ---
             Events.on(render, 'afterRender', function() {
                 const context = render.context;
                 const bodies = Composite.allBodies(engine.world);
@@ -122,9 +303,7 @@
                 for (let i = 0; i < bodies.length; i += 1) {
                     const body = bodies[i];
                     if (body.username) {
-                        // Use visual size for text scaling
                         const dim = body.visualSize || 35;
-
                         const mainSize = Math.max(12, dim * 0.5);
 
                         context.font = `800 ${mainSize}px "Barlow", Arial, sans-serif`;
@@ -132,40 +311,17 @@
                         context.strokeStyle = `black`;
                         context.fillStyle = `white`;
 
-                        // Save context to rotate text with body
                         context.save();
                         context.translate(body.position.x, body.position.y);
                         context.rotate(body.angle);
-
                         context.strokeText(body.username, 0, 0);
                         context.fillText(body.username, 0, 0);
-
                         context.restore();
                     }
                 }
             });
 
-            // --- SOUND & COLLISION LOGIC ---
-
-            function playSound(type) {
-                try {
-                    if (type === 'toaster') {
-                         soundToaster.cloneNode(true).play().catch(e => console.warn("Audio play failed:", e));
-                    } else if (type === 'duck') {
-                        const idx = Math.floor(Math.random() * soundDucks.length);
-                        soundDucks[idx].cloneNode(true).play().catch(e => console.warn("Audio play failed:", e));
-                    }
-                } catch(e) {
-                    console.error("Audio Context Error:", e);
-                }
-            }
-
-            // Resume audio context on click (just in case)
-            window.addEventListener('click', () => {
-                // Dummy play to unlock audio if needed
-                soundToaster.play().then(() => soundToaster.pause()).catch(() => {});
-            });
-
+            // --- COLLISION ---
             Events.on(engine, 'collisionStart', (event) => {
                 event.pairs.forEach((pair) => {
                     const bodyA = pair.bodyA;
@@ -177,10 +333,8 @@
                     const speedB = bodyB.speed;
                     const impact = speedA + speedB;
 
-                    // Min impact to trigger sound/effects
                     if (impact > 2.0) {
-
-                        // Handle Sound
+                        // Sound
                         if (bodyA.bodyType === 'duck' || bodyB.bodyType === 'duck') {
                              if (Math.random() < 0.3) playSound('duck');
                         }
@@ -188,15 +342,14 @@
                              if (Math.random() < 0.3) playSound('toaster');
                         }
 
-                        // Handle Shockwave (Toaster only)
+                        // Shockwave (Toaster)
                         const handleShockwave = (originBody) => {
                             if (originBody.bodyType !== 'toaster') return;
-                            // Only trigger shockwave on heavy impacts
                             if (impact < 5.0) return;
 
                             const center = originBody.position;
                             const range = 250;
-                            const forceMag = 0.1 * (impact / 10); // Scale with impact
+                            const forceMag = 0.1 * (impact / 10);
 
                             Composite.allBodies(engine.world).forEach(b => {
                                 if (b === originBody || b.isStatic) return;
@@ -215,30 +368,24 @@
             });
 
             // --- SPAWN LOGIC ---
-
             function createDuck(x, y, username) {
-                // Random Size Multiplier (0.8x to 1.3x)
+                // Size: 0.8x to 1.3x
                 const scaleMult = 0.8 + Math.random() * 0.5;
                 const baseSize = 50;
                 const size = baseSize * scaleMult;
 
                 const body = Bodies.circle(x, y, size/2, {
-                    restitution: 0.9, // Very bouncy
-                    density: 0.001,   // Light
+                    restitution: 0.9,
+                    density: 0.001,
                     friction: 0.05,
                     render: {
                         sprite: {
-                            texture: '../assets/Rubber_Duck.png', // Corrected path
-                            xScale: (size / 512), // Assuming roughly 512px image
+                            texture: duckTexturePath, // Resolved path
+                            xScale: (size / 512),
                             yScale: (size / 512)
                         }
                     }
                 });
-
-                // Adjust scale assumption if needed
-                const targetSize = size * 2;
-                body.render.sprite.xScale = targetSize / 500;
-                body.render.sprite.yScale = targetSize / 500;
 
                 body.username = username;
                 body.bodyType = 'duck';
@@ -247,7 +394,7 @@
             }
 
             function createToaster(x, y, username) {
-                // Random Size Multiplier (0.8x to 1.5x)
+                // Size: 0.8x to 1.5x
                 const scaleMult = 0.8 + Math.random() * 0.7;
 
                 const baseWidth = 70;
@@ -257,29 +404,30 @@
                 const height = baseHeight * scaleMult;
 
                 const body = Bodies.rectangle(x, y, width, height, {
-                    restitution: 0.1, // Not bouncy
-                    density: 0.05,    // Heavy
+                    restitution: 0.1,
+                    density: 0.05, // Heavy
                     friction: 0.5,
                     render: {
                         sprite: {
-                            texture: '../assets/Toaster.png', // Corrected path
+                            texture: toasterTexturePath, // Resolved path
                             xScale: width / 500,
                             yScale: height / 500
                         }
                     }
                 });
+
                 body.render.sprite.xScale = (width * 1.5) / 500;
                 body.render.sprite.yScale = (height * 1.5) / 500;
 
                 body.username = username;
                 body.bodyType = 'toaster';
-                body.visualSize = width; // For text scaling
+                body.visualSize = width;
                 return body;
             }
 
             function spawnEvent(username) {
                 const x = Math.random() * (window.innerWidth - 100) + 50;
-                const y = -100; // Drop from top
+                const y = -100;
 
                 const isDuck = Math.random() < 0.5;
                 let body;
@@ -293,12 +441,12 @@
                 Composite.add(engine.world, body);
             }
 
-            // --- START ENGINE ---
+            // --- RUNNER ---
             var runner = Runner.create();
             Runner.run(runner, engine);
             Render.run(render);
 
-            // --- STREAMER.BOT CONNECTION ---
+            // --- SB CONNECTION ---
             var client = new StreamerbotClient({
                 host: '127.0.0.1',
                 port: 8080,
@@ -307,35 +455,21 @@
             });
 
             client.on('Connect', () => {
-                console.log('Connected');
-                client.subscribe({
-                    "Twitch": ["Follow", "Subscription", "Cheer", "GiftSub", "ReSubscribe"],
-                });
+                log('SB Connected');
+                client.subscribe({ "Twitch": ["Follow", "Subscription", "Cheer", "GiftSub", "ReSubscribe"] });
             });
 
-            function getSafeData(payload) { return payload.data ? payload.data : payload; }
             function getName(payload) {
-                const d = getSafeData(payload);
-                if (typeof d.user === 'string') return d.user;
-                if (d.user_name) return d.user_name;
-                if (d.display_name) return d.display_name;
-                if (d.displayName) return d.displayName;
-                if (d.userName) return d.userName;
-                if (d.name) return d.name;
-                return "User";
+                const d = payload.data || payload;
+                return d.user_name || d.user || d.displayName || "User";
             }
 
-            // Triggers
-            client.on('Twitch.Follow', (payload) => { spawnEvent(getName(payload)); });
-            client.on('Twitch.Subscription', (payload) => { spawnEvent(getName(payload)); });
-            client.on('Twitch.ReSubscribe', (payload) => { spawnEvent(getName(payload)); });
-            client.on('Twitch.GiftSubscription', (payload) => { spawnEvent(getName(payload)); });
-            client.on('Twitch.Cheer', (payload) => {
-                const d = getSafeData(payload);
-                spawnEvent(getName(payload));
-            });
+            client.on('Twitch.Follow', (p) => spawnEvent(getName(p)));
+            client.on('Twitch.Subscription', (p) => spawnEvent(getName(p)));
+            client.on('Twitch.ReSubscribe', (p) => spawnEvent(getName(p)));
+            client.on('Twitch.GiftSubscription', (p) => spawnEvent(getName(p)));
+            client.on('Twitch.Cheer', (p) => spawnEvent(getName(p)));
 
-            // Expose
             window.spawnEvent = spawnEvent;
             window.openPit = openPit;
 
