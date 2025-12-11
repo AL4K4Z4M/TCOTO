@@ -452,14 +452,16 @@
             function spawnShowstopperBody(username) {
                 const radius = 125; // Smaller size (Diameter 250)
                 const textureSize = 500; // Assume 500x500 source
+                // Scale sprite up by 1.3 to remove visual padding (image is smaller than canvas)
+                const paddingScale = 1.3;
 
                 const body = Bodies.circle(window.innerWidth/2, -300, radius, {
                     restitution: 0.3, density: 0.1, friction: 0.5,
-                    render: { sprite: { texture: showstopperTexturePath, xScale: (radius*2)/textureSize, yScale: (radius*2)/textureSize } }
+                    render: { sprite: { texture: showstopperTexturePath, xScale: ((radius*2)/textureSize) * paddingScale, yScale: ((radius*2)/textureSize) * paddingScale } }
                 });
 
                 body.bodyType = 'toaster'; // Reuse impact sounds
-                body.scaleMult = 0.5; // Very deep pitch
+                body.scaleMult = 0.25; // Higher pitch (rate = 1.0/0.25 = 4.0)
                 body.username = username;
                 body.visualSize = radius * 2; // Store diameter for text scaling
 
