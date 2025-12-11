@@ -189,7 +189,7 @@
             // --- PHYSICS ENGINE ---
             const Engine = Matter.Engine, Render = Matter.Render, Runner = Matter.Runner,
                   Bodies = Matter.Bodies, Body = Matter.Body, Composite = Matter.Composite,
-                  Events = Matter.Events, Vector = Matter.Vector;
+                  Events = Matter.Events, Vector = Matter.Vector, Sleeping = Matter.Sleeping;
 
             const engine = Engine.create({ positionIterations: 20, velocityIterations: 20, enableSleeping: true });
             window.engine = engine; // Expose for debug/verification
@@ -533,13 +533,40 @@
             client.on('Twitch.Sub', handleSub);
 
             window.spawnEvent = spawnEvent;
+
+            // Garbage Collector
+            setInterval(() => {
+                const bodies = Composite.allBodies(engine.world);
+                bodies.forEach(body => {
+                    if (body.position.y > window.innerHeight + 2000) Composite.remove(engine.world, body);
+                });
+            }, 2000);
+
+            // Robust Flush Logic
+            var isPitOpen = false;
             window.openPit = () => {
-                // Simplified Flush
+                if (isPitOpen) return;
+                isPitOpen = true;
+
                 const ground = Composite.allBodies(engine.world).find(b => b.isStatic && b.position.y > window.innerHeight);
-                if(ground) {
-                    Composite.remove(engine.world, ground);
-                    setTimeout(() => Composite.add(engine.world, ground), 5000);
-                }
+                if(ground) Composite.remove(engine.world, ground);
+
+                // Wake up and flush all dynamic bodies
+                Composite.allBodies(engine.world).forEach(body => {
+                    if (!body.isStatic) {
+                        Sleeping.set(body, false);
+                        Body.setVelocity(body, { x: (Math.random() - 0.5) * 5, y: 15 });
+                    }
+                });
+
+                setTimeout(() => {
+                    if(ground) {
+                        Body.setPosition(ground, { x: window.innerWidth / 2, y: window.innerHeight + 100 });
+                        Body.setVelocity(ground, { x: 0, y: 0 });
+                        Composite.add(engine.world, ground);
+                    }
+                    isPitOpen = false;
+                }, 5000);
             };
 
             // --- FLUSH COMMANDS ---
