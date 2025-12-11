@@ -341,7 +341,9 @@
                 event.pairs.forEach((pair) => {
                     const bodyA = pair.bodyA;
                     const bodyB = pair.bodyB;
-                    if (bodyA.isStatic || bodyB.isStatic) return;
+
+                    // Allow collisions with walls (static) to trigger sound
+                    // We simply remove the early return for isStatic
 
                     const impact = bodyA.speed + bodyB.speed;
                     if (impact > 2.0) {
