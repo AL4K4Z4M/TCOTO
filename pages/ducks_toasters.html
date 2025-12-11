@@ -246,8 +246,10 @@
             };
 
             window.testSound = function() {
-                log("Testing Sound...", 'event');
-                playSound('duck');
+                const isToaster = Math.random() < 0.5;
+                const type = isToaster ? 'toaster' : 'duck';
+                log(`Testing Sound (${type})...`, 'event');
+                playSound(type);
             };
 
             function playSound(type) {
@@ -280,7 +282,7 @@
                         });
                     }
                 } else {
-                    // log(`No Asset for ${type}`, 'warn');
+                    log(`No Asset for ${type}`, 'warn');
                 }
             }
 
@@ -359,12 +361,12 @@
                            // log(`Impact: ${impact.toFixed(1)}`, 'info');
                         }
 
-                        // Sound logic
+                        // Sound logic - 100% chance for testing
                         if (bodyA.bodyType === 'duck' || bodyB.bodyType === 'duck') {
-                             if (Math.random() < 0.3) playSound('duck');
+                             playSound('duck');
                         }
                         if (bodyA.bodyType === 'toaster' || bodyB.bodyType === 'toaster') {
-                             if (Math.random() < 0.3) playSound('toaster');
+                             playSound('toaster');
                         }
 
                         // Shockwave
