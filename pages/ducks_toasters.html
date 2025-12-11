@@ -212,8 +212,27 @@
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3;
                 Composite.allBodies(engine.world).forEach(b => {
                     if (b.username) {
-                        const size = Math.max(12, (b.visualSize || 35) * 0.5);
-                        ctx.font = `800 ${size}px "Barlow", Arial, sans-serif`;
+                        // Calculate visual boundaries
+                        // visualSize is diameter for circles (Duck) or width for rectangles (Toaster)
+                        const visualWidth = b.visualSize || 35;
+
+                        // Start with a default large size, then scale down
+                        let fontSize = Math.max(12, visualWidth * 0.5);
+
+                        // Measure text
+                        ctx.font = `800 ${fontSize}px "Barlow", Arial, sans-serif`;
+                        let textMetrics = ctx.measureText(b.username);
+                        let textWidth = textMetrics.width;
+
+                        // Constrain to ~90% of object width
+                        const maxWidth = visualWidth * 0.9;
+
+                        if (textWidth > maxWidth) {
+                            const scaleFactor = maxWidth / textWidth;
+                            fontSize = Math.max(10, fontSize * scaleFactor); // Don't go below 10px
+                            ctx.font = `800 ${fontSize}px "Barlow", Arial, sans-serif`;
+                        }
+
                         ctx.fillStyle = 'white'; ctx.strokeStyle = 'black';
                         ctx.save();
                         ctx.translate(b.position.x, b.position.y);
