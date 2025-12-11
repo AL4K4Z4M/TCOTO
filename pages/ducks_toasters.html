@@ -319,9 +319,11 @@
                 } else {
                     const w = 80 * scaleMult; // Increased base from 70 to 80
                     const h = 60 * scaleMult; // Increased base from 50 to 60
+                    // Reduced visual padding by scaling sprite up 15% relative to body
+                    const paddingScale = 1.15;
                     body = Bodies.rectangle(x, -100, w, h, {
                         restitution: 0.1, density: 0.05, friction: 0.5,
-                        render: { sprite: { texture: toasterTexturePath, xScale: w/500, yScale: h/500 } }
+                        render: { sprite: { texture: toasterTexturePath, xScale: (w/500) * paddingScale, yScale: (h/500) * paddingScale } }
                     });
                     body.bodyType = 'toaster';
                     body.visualSize = w;
