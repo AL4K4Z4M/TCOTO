@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streamer.bot Ducks & Toasters</title>
+    <!-- Google Fonts: Barlow SemiBold -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@600&display=swap" rel="stylesheet">
+    <!-- Matter.js Physics Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <!-- Streamer.bot Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@streamerbot/client/dist/streamerbot-client.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            /* Transparent background for OBS */
+            background-color: transparent;
+            font-family: "Barlow", sans-serif;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <script>
+        (function() {
+            // --- 0. ASSET PRELOADING ---
+            // Audio
+            const soundToaster = new Audio('assets/toaster.wav');
+            const soundDucks = [];
+            for(let i=1; i<=6; i++) {
+                soundDucks.push(new Audio(`assets/duck${i}.wav`));
+            }
+
+            // --- 1. PHYSICS ENGINE SETUP ---
+            const Engine = Matter.Engine, Render = Matter.Render, Runner = Matter.Runner,
+                  Bodies = Matter.Bodies, Body = Matter.Body, Composite = Matter.Composite,
+                  Events = Matter.Events, Vector = Matter.Vector, Sleeping = Matter.Sleeping;
+
+            const engine = Engine.create({ positionIterations: 20, velocityIterations: 20, enableSleeping: true });
+
+            const render = Render.create({
+                element: document.body,
+                engine: engine,
+                options: {
+                    width: window.innerWidth,
+                    height: window.innerHeight,
+                    pixelRatio: 1,
+                    background: 'transparent',
+                    wireframes: false,
+                    showAngleIndicator: false
+                }
+            });
+
+            // --- ENVIRONMENT SETUP ---
+            const wallOpts = { isStatic: true, render: { visible: false } };
+            const ground = Bodies.rectangle(window.innerWidth/2, window.innerHeight + 100, window.innerWidth, 200, wallOpts);
+            const leftWall = Bodies.rectangle(-100, window.innerHeight/2, 200, window.innerHeight * 5, wallOpts);
+            const rightWall = Bodies.rectangle(window.innerWidth + 100, window.innerHeight/2, 200, window.innerHeight * 5, wallOpts);
+            // No ceiling for this one, or maybe keep it? Ballpit has one. I'll keep it high.
+            const ceiling = Bodies.rectangle(window.innerWidth/2, -500, window.innerWidth, 200, wallOpts);
+
+            Composite.add(engine.world, [ground, leftWall, rightWall, ceiling]);
+
+            // --- FLUSH MECHANIC ---
+            var isPitOpen = false;
+            function openPit() {
+                if (isPitOpen) return;
+                isPitOpen = true;
+                Composite.remove(engine.world, ground);
+
+                Composite.allBodies(engine.world).forEach(body => {
+                    if (!body.isStatic) {
+                        Sleeping.set(body, false);
+                        Body.setVelocity(body, { x: 0, y: 0 });
+                        Body.setVelocity(body, { x: (Math.random() - 0.5) * 5, y: 15 });
+                    }
+                });
+
+                setTimeout(() => {
+                    Body.setPosition(ground, { x: window.innerWidth / 2, y: window.innerHeight + 100 });
+                    Body.setVelocity(ground, { x: 0, y: 0 });
+                    Composite.add(engine.world, ground);
+                    isPitOpen = false;
+                }, 5000);
+            }
+
+            // Garbage Collector
+            setInterval(() => {
+                const bodies = Composite.allBodies(engine.world);
+                bodies.forEach(body => {
+                    if (body.position.y > window.innerHeight + 2000) Composite.remove(engine.world, body);
+                });
+            }, 2000);
+
+            // --- CUSTOM RENDERER FOR TEXT ---
+            Events.on(render, 'afterRender', function() {
+                const context = render.context;
+                const bodies = Composite.allBodies(engine.world);
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+
+                for (let i = 0; i < bodies.length; i += 1) {
+                    const body = bodies[i];
+                    if (body.username) {
+                        // Assuming radius for text scaling purposes
+                        // For rectangles (toasters), we can use width/2 approx
+                        const dim = body.circleRadius ? body.circleRadius : 35;
+
+                        const mainSize = Math.max(12, dim * 0.5);
+
+                        context.font = `800 ${mainSize}px "Barlow", Arial, sans-serif`;
+                        context.lineWidth = 3;
+                        context.strokeStyle = `black`;
+                        context.fillStyle = `white`;
+
+                        // Save context to rotate text with body
+                        context.save();
+                        context.translate(body.position.x, body.position.y);
+                        context.rotate(body.angle);
+
+                        context.strokeText(body.username, 0, 0);
+                        context.fillText(body.username, 0, 0);
+
+                        context.restore();
+                    }
+                }
+            });
+
+            // --- SOUND & COLLISION LOGIC ---
+
+            function playSound(type) {
+                // Clone node to allow overlapping sounds
+                try {
+                    if (type === 'toaster') {
+                         soundToaster.cloneNode(true).play().catch(e => {});
+                    } else if (type === 'duck') {
+                        const idx = Math.floor(Math.random() * soundDucks.length);
+                        soundDucks[idx].cloneNode(true).play().catch(e => {});
+                    }
+                } catch(e) {
+                    // Audio context issues sometimes
+                }
+            }
+
+            Events.on(engine, 'collisionStart', (event) => {
+                event.pairs.forEach((pair) => {
+                    const bodyA = pair.bodyA;
+                    const bodyB = pair.bodyB;
+
+                    if (bodyA.isStatic || bodyB.isStatic) return;
+
+                    const speedA = bodyA.speed;
+                    const speedB = bodyB.speed;
+                    const impact = speedA + speedB;
+
+                    // Min impact to trigger sound/effects
+                    if (impact > 2.0) {
+
+                        // Handle Sound
+                        if (bodyA.bodyType === 'duck' || bodyB.bodyType === 'duck') {
+                             // Debounce sound per tick slightly? Not bothering for now.
+                             // 20% chance to play sound to reduce chaos?
+                             if (Math.random() < 0.3) playSound('duck');
+                        }
+                        if (bodyA.bodyType === 'toaster' || bodyB.bodyType === 'toaster') {
+                             if (Math.random() < 0.3) playSound('toaster');
+                        }
+
+                        // Handle Shockwave (Toaster only)
+                        const handleShockwave = (originBody) => {
+                            if (originBody.bodyType !== 'toaster') return;
+                            // Only trigger shockwave on heavy impacts
+                            if (impact < 5.0) return;
+
+                            const center = originBody.position;
+                            const range = 150;
+                            const forceMag = 0.05 * (impact / 10); // Scale with impact
+
+                            Composite.allBodies(engine.world).forEach(b => {
+                                if (b === originBody || b.isStatic) return;
+                                const dist = Vector.magnitude(Vector.sub(b.position, center));
+                                if (dist < range) {
+                                    const dir = Vector.normalise(Vector.sub(b.position, center));
+                                    Body.applyForce(b, b.position, Vector.mult(dir, forceMag));
+                                }
+                            });
+                        };
+
+                        handleShockwave(bodyA);
+                        handleShockwave(bodyB);
+                    }
+                });
+            });
+
+            // --- SPAWN LOGIC ---
+
+            function createDuck(x, y, username) {
+                // Duck: Circle or Rounded Rectangle. Using Circle for bouncy feel usually better, but sprites are images.
+                // Assuming png is roughly square or we scale it.
+                // Duck should be light and bouncy.
+                const size = 50;
+                const body = Bodies.circle(x, y, size/2, {
+                    restitution: 0.9, // Very bouncy
+                    density: 0.001,   // Light
+                    friction: 0.05,
+                    render: {
+                        sprite: {
+                            texture: 'assets/Rubber_Duck.png',
+                            xScale: (size / 512), // Assuming roughly 512px image, adjusting scale dynamically would be better but simple for now
+                            yScale: (size / 512)
+                        }
+                    }
+                });
+
+                // Adjust scale if image loads (Optional dynamic scaling) - sticking to fixed for now
+                // Or try to roughly guess ratio. I'll set a standard scale assuming ~256-512px images.
+                // Let's set the scale to fit 'size'.
+                const targetSize = size * 2; // Sprite size visual
+                body.render.sprite.xScale = targetSize / 500; // Guessing source is 500px
+                body.render.sprite.yScale = targetSize / 500;
+
+                body.username = username;
+                body.bodyType = 'duck';
+                return body;
+            }
+
+            function createToaster(x, y, username) {
+                // Toaster: Rectangle. Heavy.
+                const width = 70;
+                const height = 50;
+                const body = Bodies.rectangle(x, y, width, height, {
+                    restitution: 0.1, // Not bouncy
+                    density: 0.05,    // Heavy (50x duck)
+                    friction: 0.5,
+                    render: {
+                        sprite: {
+                            texture: 'assets/Toaster.png',
+                            xScale: width / 500,
+                            yScale: height / 500
+                        }
+                    }
+                });
+                body.render.sprite.xScale = (width * 1.5) / 500; // Visual adjustment
+                body.render.sprite.yScale = (height * 1.5) / 500;
+
+                body.username = username;
+                body.bodyType = 'toaster';
+                return body;
+            }
+
+            function spawnEvent(username) {
+                const x = Math.random() * (window.innerWidth - 100) + 50;
+                const y = -100; // Drop from top
+
+                const isDuck = Math.random() < 0.5;
+                let body;
+
+                if (isDuck) {
+                    body = createDuck(x, y, username);
+                } else {
+                    body = createToaster(x, y, username);
+                }
+
+                Composite.add(engine.world, body);
+            }
+
+            // --- START ENGINE ---
+            var runner = Runner.create();
+            Runner.run(runner, engine);
+            Render.run(render);
+
+            // --- STREAMER.BOT CONNECTION ---
+            var client = new StreamerbotClient({
+                host: '127.0.0.1',
+                port: 8080,
+                endpoint: '/',
+                autoReconnect: true
+            });
+
+            client.on('Connect', () => {
+                console.log('Connected');
+                client.subscribe({
+                    "Twitch": ["Follow", "Subscription", "Cheer", "GiftSub", "ReSubscribe"],
+                });
+            });
+
+            function getSafeData(payload) { return payload.data ? payload.data : payload; }
+            function getName(payload) {
+                const d = getSafeData(payload);
+                if (typeof d.user === 'string') return d.user;
+                if (d.user_name) return d.user_name;
+                if (d.display_name) return d.display_name;
+                if (d.displayName) return d.displayName;
+                if (d.userName) return d.userName;
+                if (d.name) return d.name;
+                return "User";
+            }
+
+            // Triggers
+            client.on('Twitch.Follow', (payload) => { spawnEvent(getName(payload)); });
+            client.on('Twitch.Subscription', (payload) => { spawnEvent(getName(payload)); });
+            client.on('Twitch.ReSubscribe', (payload) => { spawnEvent(getName(payload)); });
+            client.on('Twitch.GiftSubscription', (payload) => { spawnEvent(getName(payload)); });
+            client.on('Twitch.Cheer', (payload) => {
+                const d = getSafeData(payload);
+                const bits = d.bits || 1;
+                // Maybe spawn multiple for big cheers?
+                // Stick to 1 for now per request requirements "spawn ... Rubber_Duck.png and Toaster.png"
+                spawnEvent(getName(payload));
+            });
+
+            // Expose
+            window.spawnEvent = spawnEvent;
+            window.openPit = openPit;
+
+        })();
+    </script>
+</body>
+</html>

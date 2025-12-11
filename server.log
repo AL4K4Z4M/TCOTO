@@ -1,0 +1,20 @@
+127.0.0.1 - - [11/Dec/2025 00:07:47] "GET /OBS_COTO.html HTTP/1.1" 200 -
+127.0.0.1 - - [11/Dec/2025 00:07:51] "GET /pages/ducks_toasters.html HTTP/1.1" 200 -
+127.0.0.1 - - [11/Dec/2025 00:07:51] code 404, message File not found
+127.0.0.1 - - [11/Dec/2025 00:07:51] "GET /pages/assets/toaster.wav HTTP/1.1" 404 -
+127.0.0.1 - - [11/Dec/2025 00:07:51] code 404, message File not found
+127.0.0.1 - - [11/Dec/2025 00:07:51] "GET /pages/assets/duck1.wav HTTP/1.1" 404 -
+127.0.0.1 - - [11/Dec/2025 00:07:51] code 404, message File not found
+127.0.0.1 - - [11/Dec/2025 00:07:51] "GET /pages/assets/duck2.wav HTTP/1.1" 404 -
+127.0.0.1 - - [11/Dec/2025 00:07:51] code 404, message File not found
+127.0.0.1 - - [11/Dec/2025 00:07:51] "GET /pages/assets/duck3.wav HTTP/1.1" 404 -
+127.0.0.1 - - [11/Dec/2025 00:07:51] code 404, message File not found
+127.0.0.1 - - [11/Dec/2025 00:07:51] "GET /pages/assets/duck4.wav HTTP/1.1" 404 -
+127.0.0.1 - - [11/Dec/2025 00:07:51] code 404, message File not found
+127.0.0.1 - - [11/Dec/2025 00:07:51] "GET /pages/assets/duck5.wav HTTP/1.1" 404 -
+127.0.0.1 - - [11/Dec/2025 00:07:51] code 404, message File not found
+127.0.0.1 - - [11/Dec/2025 00:07:51] "GET /pages/assets/duck6.wav HTTP/1.1" 404 -
+127.0.0.1 - - [11/Dec/2025 00:07:51] code 404, message File not found
+127.0.0.1 - - [11/Dec/2025 00:07:51] "GET /pages/assets/Toaster.png HTTP/1.1" 404 -
+127.0.0.1 - - [11/Dec/2025 00:07:51] code 404, message File not found
+127.0.0.1 - - [11/Dec/2025 00:07:51] "GET /pages/assets/Rubber_Duck.png HTTP/1.1" 404 -
