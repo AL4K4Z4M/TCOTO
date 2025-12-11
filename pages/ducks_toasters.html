@@ -38,7 +38,7 @@
             display: flex;
             flex-direction: column;
             gap: 5px;
-            pointer-events: auto; /* Allow clicking test buttons */
+            pointer-events: auto;
         }
 
         .status-msg {
@@ -53,6 +53,7 @@
         .status-error { color: #ff5555; }
         .status-warn { color: #ffff55; }
         .status-event { color: #55ffff; }
+        .status-engine { color: #ff00ff; font-weight: bold; border: 1px solid #ff00ff; }
 
         /* Controls */
         #controls {
@@ -122,8 +123,6 @@
             // --- LOGGER ---
             function log(msg, type='info') {
                 const el = document.getElementById('status-overlay');
-
-                // Add new message before controls
                 const controls = document.getElementById('controls');
 
                 const line = document.createElement('div');
@@ -131,362 +130,303 @@
                 if (type === 'error') line.classList.add('status-error');
                 if (type === 'warn') line.classList.add('status-warn');
                 if (type === 'event') line.classList.add('status-event');
+                if (type === 'engine') line.classList.add('status-engine');
                 line.innerText = msg;
 
                 el.insertBefore(line, controls);
 
-                // Keep only last 10 lines (excluding controls)
                 const msgs = el.querySelectorAll('.status-msg');
-                if (msgs.length > 10) {
-                    el.removeChild(msgs[0]);
-                }
+                if (msgs.length > 10) el.removeChild(msgs[0]);
                 console.log(`[Ducks] ${msg}`);
             }
 
-            // --- HTML5 AUDIO LOADER ---
-            // Reverted to HTML5 Audio to avoid CORS issues with fetch() on file://
-            const ASSETS = {};
-            const ASSET_PATHS = [
-                'assets/',
-                '../assets/'
-            ];
+            // --- AUDIO MANAGER (Low Latency) ---
+            const AudioManager = {
+                ctx: null,
+                buffers: {},
+                pool: {},
+                mode: 'unknown', // 'webaudio' or 'html5'
+                assets: {},
+                paths: ['assets/', '../assets/'],
 
-            function loadAudio(key, filename) {
-                return new Promise((resolve, reject) => {
-                    let attempt = 0;
+                init: function() {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                    log("Audio Manager Initialized");
+                },
 
-                    function tryLoad() {
-                        if (attempt >= ASSET_PATHS.length) {
-                            log(`Failed to load ${filename}`, 'error');
-                            ASSETS[key] = null;
-                            resolve(null);
-                            return;
+                load: async function(key, filename) {
+                    // Try Web Audio Fetch first (Fastest playback)
+                    let loaded = false;
+
+                    // 1. Attempt Web Audio Buffer Load
+                    for (let path of this.paths) {
+                        try {
+                            const response = await fetch(path + filename);
+                            if (response.ok) {
+                                const buffer = await response.arrayBuffer();
+                                const audioBuffer = await this.ctx.decodeAudioData(buffer);
+                                this.buffers[key] = audioBuffer;
+                                this.mode = 'webaudio'; // Prefer this if ANY load succeeds
+                                log(`[WebAudio] Loaded ${filename}`, 'info');
+                                loaded = true;
+                                break;
+                            }
+                        } catch (e) {
+                            // Fetch failed (CORS or 404), try next path or next method
                         }
-
-                        const path = ASSET_PATHS[attempt] + filename;
-                        const audio = new Audio();
-                        audio.src = path;
-
-                        // We set preload to auto
-                        audio.preload = "auto";
-                        audio.volume = 0.5;
-
-                        // Check if it loads
-                        audio.oncanplaythrough = () => {
-                            // Prevent multiple fires
-                            audio.oncanplaythrough = null;
-                            audio.onerror = null;
-                            log(`Loaded: ${filename}`, 'info');
-                            ASSETS[key] = audio;
-                            resolve(audio);
-                        };
-
-                        audio.onerror = (e) => {
-                            // Try next path
-                            attempt++;
-                            tryLoad();
-                        };
-
-                        // Force load
-                        audio.load();
                     }
-                    tryLoad();
-                });
-            }
 
-            function loadImagePath(filename) {
-                return new Promise((resolve) => {
-                    let attempt = 0;
-                    function tryLoad() {
-                        if (attempt >= ASSET_PATHS.length) {
-                            log(`Failed to load image ${filename}`, 'error');
-                            resolve(null);
-                            return;
+                    // 2. Fallback to HTML5 Audio Pool if Web Audio failed
+                    if (!loaded) {
+                        log(`[WebAudio] Failed for ${filename}, trying HTML5 Pool`, 'warn');
+                        // Try loading via Image/Object check or just try Audio element
+                        for (let path of this.paths) {
+                            if (await this.checkHTML5(path + filename)) {
+                                this.createPool(key, path + filename, 5);
+                                if (this.mode !== 'webaudio') this.mode = 'html5';
+                                log(`[HTML5] Pool Created for ${filename}`, 'info');
+                                loaded = true;
+                                break;
+                            }
                         }
-                        const path = ASSET_PATHS[attempt] + filename;
-                        const img = new Image();
-                        img.onload = () => resolve(path);
-                        img.onerror = () => { attempt++; tryLoad(); };
-                        img.src = path;
                     }
-                    tryLoad();
-                });
-            }
 
-            // Preload All
-            const loaders = [];
-            loaders.push(loadAudio('toaster', 'toaster.wav'));
-            for(let i=1; i<=6; i++) loaders.push(loadAudio(`duck${i}`, `duck${i}.wav`));
+                    if (!loaded) log(`FAILED to load ${filename}`, 'error');
+                },
 
-            let duckTexturePath = '../assets/Rubber_Duck.png';
-            let toasterTexturePath = '../assets/Toaster.png';
+                checkHTML5: function(url) {
+                    return new Promise(resolve => {
+                        const a = new Audio();
+                        a.src = url;
+                        a.oncanplaythrough = () => resolve(true);
+                        a.onerror = () => resolve(false);
+                    });
+                },
 
-            loaders.push(loadImagePath('Rubber_Duck.png').then(p => { if(p) duckTexturePath = p; }));
-            loaders.push(loadImagePath('Toaster.png').then(p => { if(p) toasterTexturePath = p; }));
+                createPool: function(key, url, count) {
+                    this.pool[key] = [];
+                    for(let i=0; i<count; i++) {
+                        const a = new Audio(url);
+                        a.preload = 'auto';
+                        this.pool[key].push(a);
+                    }
+                },
 
-            Promise.all(loaders).then(() => {
-                log("Assets Loading Complete");
-            });
+                play: function(key) {
+                    // Method A: Web Audio
+                    if (this.buffers[key]) {
+                        if (this.ctx.state === 'suspended') return 'suspended';
+                        const source = this.ctx.createBufferSource();
+                        source.buffer = this.buffers[key];
+                        const gain = this.ctx.createGain();
+                        gain.gain.value = 0.5;
+                        source.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        source.start(0);
+                        return 'playing';
+                    }
 
-            // --- AUDIO CONTROL ---
-            window.enableAudio = function() {
-                const overlay = document.getElementById('click-overlay');
-                overlay.classList.add('hidden');
+                    // Method B: HTML5 Pool
+                    if (this.pool[key]) {
+                        // Find a free player
+                        const p = this.pool[key].find(a => a.paused);
+                        if (p) {
+                            p.currentTime = 0;
+                            p.volume = 0.5;
+                            p.play().catch(e => {
+                                if (e.name === 'NotAllowedError') {
+                                    document.getElementById('click-overlay').classList.remove('hidden');
+                                }
+                            });
+                            return 'playing';
+                        } else {
+                            // All busy, force one? No, just skip to prevent overlap chaos or clone
+                            // log(`Pool exhausted for ${key}`, 'warn');
+                        }
+                    }
+                },
 
-                // Try to play silent
-                if (ASSETS['toaster']) {
-                    ASSETS['toaster'].play()
-                        .then(() => {
-                            ASSETS['toaster'].pause();
-                            ASSETS['toaster'].currentTime = 0;
-                            log("Audio Unlocked");
-                        })
-                        .catch(e => log(`Unlock Failed: ${e.message}`, 'warn'));
+                unlock: function() {
+                    if (this.ctx && this.ctx.state === 'suspended') {
+                        this.ctx.resume().then(() => log("AudioContext Resumed", 'event'));
+                    }
+                    // Try to unlock HTML5 pool elements too by playing them briefly
+                    for(let k in this.pool) {
+                        this.pool[k].forEach(a => {
+                            a.play().then(() => { a.pause(); a.currentTime=0; }).catch(() => {});
+                        });
+                    }
                 }
             };
 
+            AudioManager.init();
+
+            // Load Assets
+            const loadAll = async () => {
+                await AudioManager.load('toaster', 'toaster.wav');
+                for(let i=1; i<=6; i++) await AudioManager.load(`duck${i}`, `duck${i}.wav`);
+
+                log(`Audio Engine: ${AudioManager.mode.toUpperCase()}`, 'engine');
+            };
+            loadAll();
+
+            // Image Loader
+            let duckTexturePath = '../assets/Rubber_Duck.png';
+            let toasterTexturePath = '../assets/Toaster.png';
+
+            const checkImage = (path) => new Promise(r => {
+                const img = new Image();
+                img.onload = () => r(path);
+                img.onerror = () => r(null);
+                img.src = path;
+            });
+
+            const resolveImages = async () => {
+                let p = await checkImage('assets/Rubber_Duck.png') || await checkImage('../assets/Rubber_Duck.png');
+                if (p) duckTexturePath = p;
+
+                p = await checkImage('assets/Toaster.png') || await checkImage('../assets/Toaster.png');
+                if (p) toasterTexturePath = p;
+
+                log("Images Resolved", 'info');
+            };
+            resolveImages();
+
+
+            // --- GLOBAL CONTROLS ---
+            window.enableAudio = function() {
+                document.getElementById('click-overlay').classList.add('hidden');
+                AudioManager.unlock();
+            };
+
             window.testSound = function() {
-                const isToaster = Math.random() < 0.5;
-                const type = isToaster ? 'toaster' : 'duck';
-                log(`Testing Sound (${type})...`, 'event');
+                const type = Math.random() < 0.5 ? 'toaster' : 'duck';
+                log(`Test: ${type}`, 'event');
                 playSound(type);
             };
 
             function playSound(type) {
-                let original = null;
                 if (type === 'toaster') {
-                    original = ASSETS['toaster'];
+                    AudioManager.play('toaster');
                 } else if (type === 'duck') {
-                    const available = [];
-                    for(let i=1; i<=6; i++) if (ASSETS[`duck${i}`]) available.push(ASSETS[`duck${i}`]);
-                    if (available.length > 0) {
-                        original = available[Math.floor(Math.random() * available.length)];
-                    }
-                }
-
-                if (original) {
-                    // Clone to allow overlapping sounds
-                    // Note: cloneNode() on Audio elements works efficiently
-                    const clone = original.cloneNode();
-                    clone.volume = 0.5;
-                    const p = clone.play();
-
-                    if (p !== undefined) {
-                        p.then(() => {
-                            // log(`Played: ${type}`, 'info');
-                        }).catch(e => {
-                            log(`Play Blocked: ${e.message}`, 'error');
-                            if (e.name === 'NotAllowedError') {
-                                document.getElementById('click-overlay').classList.remove('hidden');
-                            }
-                        });
-                    }
-                } else {
-                    log(`No Asset for ${type}`, 'warn');
+                    const idx = Math.ceil(Math.random() * 6);
+                    AudioManager.play(`duck${idx}`);
                 }
             }
 
-            // --- PHYSICS ENGINE SETUP ---
+            // --- PHYSICS ENGINE ---
             const Engine = Matter.Engine, Render = Matter.Render, Runner = Matter.Runner,
                   Bodies = Matter.Bodies, Body = Matter.Body, Composite = Matter.Composite,
-                  Events = Matter.Events, Vector = Matter.Vector, Sleeping = Matter.Sleeping;
+                  Events = Matter.Events, Vector = Matter.Vector;
 
             const engine = Engine.create({ positionIterations: 20, velocityIterations: 20, enableSleeping: true });
-
             const render = Render.create({
                 element: document.body,
                 engine: engine,
-                options: {
-                    width: window.innerWidth,
-                    height: window.innerHeight,
-                    pixelRatio: 1,
-                    background: 'transparent',
-                    wireframes: false,
-                    showAngleIndicator: false
-                }
+                options: { width: window.innerWidth, height: window.innerHeight, background: 'transparent', wireframes: false }
             });
 
-            // --- ENVIRONMENT ---
+            // Walls
             const wallOpts = { isStatic: true, render: { visible: false } };
-            const ground = Bodies.rectangle(window.innerWidth/2, window.innerHeight + 100, window.innerWidth, 200, wallOpts);
-            const leftWall = Bodies.rectangle(-100, window.innerHeight/2, 200, window.innerHeight * 5, wallOpts);
-            const rightWall = Bodies.rectangle(window.innerWidth + 100, window.innerHeight/2, 200, window.innerHeight * 5, wallOpts);
-            const ceiling = Bodies.rectangle(window.innerWidth/2, -500, window.innerWidth, 200, wallOpts);
+            Composite.add(engine.world, [
+                Bodies.rectangle(window.innerWidth/2, window.innerHeight + 100, window.innerWidth, 200, wallOpts), // Floor
+                Bodies.rectangle(-100, window.innerHeight/2, 200, window.innerHeight * 5, wallOpts), // Left
+                Bodies.rectangle(window.innerWidth + 100, window.innerHeight/2, 200, window.innerHeight * 5, wallOpts), // Right
+                Bodies.rectangle(window.innerWidth/2, -500, window.innerWidth, 200, wallOpts) // Ceiling
+            ]);
 
-            Composite.add(engine.world, [ground, leftWall, rightWall, ceiling]);
-
-            // --- RENDER TEXT ---
-            Events.on(render, 'afterRender', function() {
-                const context = render.context;
-                const bodies = Composite.allBodies(engine.world);
-                context.textAlign = 'center';
-                context.textBaseline = 'middle';
-
-                for (let i = 0; i < bodies.length; i += 1) {
-                    const body = bodies[i];
-                    if (body.username) {
-                        const dim = body.visualSize || 35;
-                        const mainSize = Math.max(12, dim * 0.5);
-
-                        context.font = `800 ${mainSize}px "Barlow", Arial, sans-serif`;
-                        context.lineWidth = 3;
-                        context.strokeStyle = `black`;
-                        context.fillStyle = `white`;
-
-                        context.save();
-                        context.translate(body.position.x, body.position.y);
-                        context.rotate(body.angle);
-                        context.strokeText(body.username, 0, 0);
-                        context.fillText(body.username, 0, 0);
-                        context.restore();
-                    }
-                }
-            });
-
-            // --- COLLISION ---
+            // --- COLLISION LOGIC ---
             Events.on(engine, 'collisionStart', (event) => {
                 event.pairs.forEach((pair) => {
                     const bodyA = pair.bodyA;
                     const bodyB = pair.bodyB;
-
                     if (bodyA.isStatic || bodyB.isStatic) return;
 
-                    const speedA = bodyA.speed;
-                    const speedB = bodyB.speed;
-                    const impact = speedA + speedB;
-
+                    const impact = bodyA.speed + bodyB.speed;
                     if (impact > 2.0) {
-                        // Debug log for heavy impacts to verify physics
-                        if (impact > 10.0) {
-                           // log(`Impact: ${impact.toFixed(1)}`, 'info');
-                        }
-
-                        // Sound logic - 100% chance for testing
-                        if (bodyA.bodyType === 'duck' || bodyB.bodyType === 'duck') {
-                             playSound('duck');
-                        }
-                        if (bodyA.bodyType === 'toaster' || bodyB.bodyType === 'toaster') {
-                             playSound('toaster');
-                        }
+                        if (bodyA.bodyType === 'duck' || bodyB.bodyType === 'duck') playSound('duck');
+                        if (bodyA.bodyType === 'toaster' || bodyB.bodyType === 'toaster') playSound('toaster');
 
                         // Shockwave
-                        const handleShockwave = (originBody) => {
-                            if (originBody.bodyType !== 'toaster') return;
-                            if (impact < 5.0) return;
-
-                            const center = originBody.position;
-                            const range = 250;
-                            const forceMag = 0.1 * (impact / 10);
-
+                        if ((bodyA.bodyType === 'toaster' || bodyB.bodyType === 'toaster') && impact > 5.0) {
+                            const origin = bodyA.bodyType === 'toaster' ? bodyA : bodyB;
                             Composite.allBodies(engine.world).forEach(b => {
-                                if (b === originBody || b.isStatic) return;
-                                const dist = Vector.magnitude(Vector.sub(b.position, center));
-                                if (dist < range) {
-                                    const dir = Vector.normalise(Vector.sub(b.position, center));
-                                    Body.applyForce(b, b.position, Vector.mult(dir, forceMag));
+                                if (b === origin || b.isStatic) return;
+                                const dist = Vector.magnitude(Vector.sub(b.position, origin.position));
+                                if (dist < 250) {
+                                    const dir = Vector.normalise(Vector.sub(b.position, origin.position));
+                                    Body.applyForce(b, b.position, Vector.mult(dir, 0.1 * (impact/10)));
                                 }
                             });
-                        };
-
-                        handleShockwave(bodyA);
-                        handleShockwave(bodyB);
+                        }
                     }
                 });
             });
 
             // --- SPAWN LOGIC ---
-            function createDuck(x, y, username) {
-                const scaleMult = 0.8 + Math.random() * 0.5;
-                const baseSize = 50;
-                const size = baseSize * scaleMult;
-
-                const body = Bodies.circle(x, y, size/2, {
-                    restitution: 0.9,
-                    density: 0.001,
-                    friction: 0.05,
-                    render: {
-                        sprite: {
-                            texture: duckTexturePath,
-                            xScale: (size / 512),
-                            yScale: (size / 512)
-                        }
-                    }
-                });
-
-                body.username = username;
-                body.bodyType = 'duck';
-                body.visualSize = size;
-                return body;
-            }
-
-            function createToaster(x, y, username) {
-                const scaleMult = 0.8 + Math.random() * 0.7;
-                const width = 70 * scaleMult;
-                const height = 50 * scaleMult;
-
-                const body = Bodies.rectangle(x, y, width, height, {
-                    restitution: 0.1,
-                    density: 0.05,
-                    friction: 0.5,
-                    render: {
-                        sprite: {
-                            texture: toasterTexturePath,
-                            xScale: width / 500,
-                            yScale: height / 500
-                        }
-                    }
-                });
-
-                body.render.sprite.xScale = (width * 1.5) / 500;
-                body.render.sprite.yScale = (height * 1.5) / 500;
-
-                body.username = username;
-                body.bodyType = 'toaster';
-                body.visualSize = width;
-                return body;
-            }
-
             function spawnEvent(username) {
                 const x = Math.random() * (window.innerWidth - 100) + 50;
-                const y = -100;
                 const isDuck = Math.random() < 0.5;
-                const body = isDuck ? createDuck(x, y, username) : createToaster(x, y, username);
+
+                let body;
+                if (isDuck) {
+                    const size = 50 * (0.8 + Math.random() * 0.5);
+                    body = Bodies.circle(x, -100, size/2, {
+                        restitution: 0.9, density: 0.001, friction: 0.05,
+                        render: { sprite: { texture: duckTexturePath, xScale: size/512, yScale: size/512 } }
+                    });
+                    body.bodyType = 'duck';
+                    body.visualSize = size;
+                } else {
+                    const w = 70 * (0.8 + Math.random() * 0.7);
+                    const h = 50 * (0.8 + Math.random() * 0.7);
+                    body = Bodies.rectangle(x, -100, w, h, {
+                        restitution: 0.1, density: 0.05, friction: 0.5,
+                        render: { sprite: { texture: toasterTexturePath, xScale: w/500, yScale: h/500 } }
+                    });
+                    body.bodyType = 'toaster';
+                    body.visualSize = w;
+                }
+                body.username = username;
                 Composite.add(engine.world, body);
-                // log(`Spawned: ${isDuck ? 'Duck' : 'Toaster'}`, 'event');
             }
 
-            // --- RUNNER ---
-            var runner = Runner.create();
-            Runner.run(runner, engine);
+            // --- RENDER TEXT ---
+            Events.on(render, 'afterRender', () => {
+                const ctx = render.context;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3;
+                Composite.allBodies(engine.world).forEach(b => {
+                    if (b.username) {
+                        const size = Math.max(12, (b.visualSize || 35) * 0.5);
+                        ctx.font = `800 ${size}px "Barlow", Arial, sans-serif`;
+                        ctx.fillStyle = 'white'; ctx.strokeStyle = 'black';
+                        ctx.save();
+                        ctx.translate(b.position.x, b.position.y);
+                        ctx.rotate(b.angle);
+                        ctx.strokeText(b.username, 0, 0);
+                        ctx.fillText(b.username, 0, 0);
+                        ctx.restore();
+                    }
+                });
+            });
+
+            // --- START ---
+            Runner.run(Runner.create(), engine);
             Render.run(render);
 
-            // --- SB CONNECTION ---
-            var client = new StreamerbotClient({
-                host: '127.0.0.1',
-                port: 8080,
-                endpoint: '/',
-                autoReconnect: true
-            });
-
+            // --- STREAMER.BOT ---
+            const client = new StreamerbotClient({ host: '127.0.0.1', port: 8080, endpoint: '/', autoReconnect: true });
             client.on('Connect', () => {
-                log('SB Connected');
+                log('Connected to SB');
                 client.subscribe({ "Twitch": ["Follow", "Subscription", "Cheer", "GiftSub", "ReSubscribe"] });
             });
-
-            function getName(payload) {
-                const d = payload.data || payload;
-                return d.user_name || d.user || d.displayName || "User";
-            }
-
+            const getName = (p) => (p.data || p).user_name || (p.data || p).user || "User";
             client.on('Twitch.Follow', (p) => spawnEvent(getName(p)));
             client.on('Twitch.Subscription', (p) => spawnEvent(getName(p)));
-            client.on('Twitch.ReSubscribe', (p) => spawnEvent(getName(p)));
-            client.on('Twitch.GiftSubscription', (p) => spawnEvent(getName(p)));
             client.on('Twitch.Cheer', (p) => spawnEvent(getName(p)));
 
             window.spawnEvent = spawnEvent;
-            window.openPit = () => {}; // Placeholder
-
         })();
     </script>
 </body>
