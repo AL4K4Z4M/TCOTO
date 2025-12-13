@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streamer.bot Ducks & Toasters</title>
+    <!-- Google Fonts: Barlow SemiBold -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@600&display=swap" rel="stylesheet">
+    <!-- Matter.js Physics Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <!-- Streamer.bot Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@streamerbot/client/dist/streamerbot-client.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: transparent;
+            font-family: "Barlow", sans-serif;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            z-index: 1; /* Ensure canvas is below overlay */
+            position: absolute;
+        }
+    </style>
+</head>
+<body>
+    <!-- Showstopper Overlay Container -->
+    <div id="showstopper-container" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:100;">
+        <!-- Hidden source videos -->
+        <video id="lightning-bg-src" src="assets/lightning_background.mp4" style="display:none;" muted playsinline></video>
+        <video id="lightning-fg-src" src="assets/lightning_foreground.mp4" style="display:none;" muted playsinline></video>
+
+        <!-- Render Canvases -->
+        <canvas id="cvs-bg" style="display:none; position:absolute; width:100%; height:100%; z-index:10;"></canvas>
+        <img id="showstopper-img" src="assets/Showstopper.png" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%) scale(0); transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index:20; max-width:80%; max-height:80%;">
+        <canvas id="cvs-fg" style="display:none; position:absolute; width:100%; height:100%; z-index:30;"></canvas>
+    </div>
+
+    <script>
+        (function() {
+            // --- AUDIO MANAGER (Low Latency) ---
+            const AudioManager = {
+                ctx: null,
+                buffers: {},
+                pool: {},
+                mode: 'unknown',
+                paths: ['assets/'],
+
+                init: function() {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+
+                    // Resume context on first interaction
+                    window.addEventListener('click', () => {
+                        if (this.ctx.state === 'suspended') this.ctx.resume();
+                    }, { once: true });
+                },
+
+                load: async function(key, filename) {
+                    let loaded = false;
+
+                    // 1. Web Audio Load
+                    for (let path of this.paths) {
+                        try {
+                            const response = await fetch(path + filename);
+                            if (response.ok) {
+                                const buffer = await response.arrayBuffer();
+                                const audioBuffer = await this.ctx.decodeAudioData(buffer);
+                                this.buffers[key] = audioBuffer;
+                                this.mode = 'webaudio';
+                                loaded = true;
+                                break;
+                            }
+                        } catch (e) {}
+                    }
+
+                    // 2. HTML5 Fallback
+                    if (!loaded) {
+                        for (let path of this.paths) {
+                            if (await this.checkHTML5(path + filename)) {
+                                this.createPool(key, path + filename, 5);
+                                if (this.mode !== 'webaudio') this.mode = 'html5';
+                                loaded = true;
+                                break;
+                            }
+                        }
+                    }
+                },
+
+                checkHTML5: function(url) {
+                    return new Promise(resolve => {
+                        const a = new Audio();
+                        a.src = url;
+                        a.oncanplaythrough = () => resolve(true);
+                        a.onerror = () => resolve(false);
+                    });
+                },
+
+                createPool: function(key, url, count) {
+                    this.pool[key] = [];
+                    for(let i=0; i<count; i++) {
+                        const a = new Audio(url);
+                        a.preload = 'auto';
+                        this.pool[key].push(a);
+                    }
+                },
+
+                play: function(key, rate = 1.0) {
+                    // Clamp rate for safety
+                    rate = Math.max(0.1, Math.min(rate, 4.0));
+
+                    // Web Audio
+                    if (this.buffers[key]) {
+                        if (this.ctx.state === 'suspended') this.ctx.resume();
+                        try {
+                            const source = this.ctx.createBufferSource();
+                            source.buffer = this.buffers[key];
+                            source.playbackRate.value = rate;
+
+                            const gain = this.ctx.createGain();
+                            gain.gain.value = 0.5;
+
+                            source.connect(gain);
+                            gain.connect(this.ctx.destination);
+                            source.start(0);
+                        } catch(e) {}
+                        return;
+                    }
+
+                    // HTML5
+                    if (this.pool[key]) {
+                        const p = this.pool[key].find(a => a.paused);
+                        if (p) {
+                            p.currentTime = 0;
+                            p.volume = 0.5;
+                            p.playbackRate = rate;
+                            p.play().catch(e => {});
+                        }
+                    }
+                }
+            };
+
+            AudioManager.init();
+
+            // Load Assets
+            const loadAll = async () => {
+                await AudioManager.load('toaster', 'toaster.wav');
+                await AudioManager.load('showstopper', 'showstopper.wav');
+                for(let i=1; i<=6; i++) await AudioManager.load(`duck${i}`, `duck${i}.wav`);
+            };
+            loadAll();
+
+            // Image Loader
+            let duckTexturePath = 'assets/Rubber_Duck.png';
+            let toasterTexturePath = 'assets/Toaster.png';
+            let showstopperTexturePath = 'assets/Showstopper.png';
+
+            const checkImage = (path) => new Promise(r => {
+                const img = new Image();
+                img.onload = () => r(path);
+                img.onerror = () => r(null);
+                img.src = path;
+            });
+
+            const resolveImages = async () => {
+                let p = await checkImage('assets/Rubber_Duck.png');
+                if (p) duckTexturePath = p;
+
+                p = await checkImage('assets/Toaster.png');
+                if (p) toasterTexturePath = p;
+
+                p = await checkImage('assets/Showstopper.png');
+                if (p) {
+                    showstopperTexturePath = p;
+                    document.getElementById('showstopper-img').src = p;
+                }
+            };
+            resolveImages();
+
+            // --- PHYSICS ENGINE ---
+            const Engine = Matter.Engine, Render = Matter.Render, Runner = Matter.Runner,
+                  Bodies = Matter.Bodies, Body = Matter.Body, Composite = Matter.Composite,
+                  Events = Matter.Events, Vector = Matter.Vector, Sleeping = Matter.Sleeping;
+
+            const engine = Engine.create({ positionIterations: 20, velocityIterations: 20, enableSleeping: true });
+            window.engine = engine; // Expose for debug/verification
+            const render = Render.create({
+                element: document.body,
+                engine: engine,
+                options: { width: window.innerWidth, height: window.innerHeight, background: 'transparent', wireframes: false }
+            });
+
+            // Walls
+            const wallOpts = { isStatic: true, render: { visible: false } };
+            Composite.add(engine.world, [
+                Bodies.rectangle(window.innerWidth/2, window.innerHeight + 100, window.innerWidth, 200, wallOpts), // Floor
+                Bodies.rectangle(-100, window.innerHeight/2, 200, window.innerHeight * 5, wallOpts), // Left
+                Bodies.rectangle(window.innerWidth + 100, window.innerHeight/2, 200, window.innerHeight * 5, wallOpts), // Right
+                Bodies.rectangle(window.innerWidth/2, -500, window.innerWidth, 200, wallOpts) // Ceiling
+            ]);
+
+            // --- VISUALS: PREVENT DIMMING (Fake Wake) ---
+            Events.on(render, 'beforeRender', function() {
+                Composite.allBodies(engine.world).forEach(body => {
+                    if (body.isSleeping) {
+                        body.isSleeping = false;
+                        body.fakeWake = true;
+                    }
+                });
+            });
+
+            Events.on(render, 'afterRender', function() {
+                const ctx = render.context;
+
+                // Restore sleeping state
+                Composite.allBodies(engine.world).forEach(body => {
+                    if (body.fakeWake) {
+                        body.isSleeping = true;
+                        delete body.fakeWake;
+                    }
+                });
+
+                // Render Text
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3;
+                Composite.allBodies(engine.world).forEach(b => {
+                    if (b.username) {
+                        // Calculate visual boundaries
+                        // visualSize is diameter for circles (Duck) or width for rectangles (Toaster)
+                        const visualWidth = b.visualSize || 35;
+
+                        // Start with a default large size, then scale down
+                        let fontSize = Math.max(12, visualWidth * 0.5);
+
+                        // Measure text
+                        ctx.font = `800 ${fontSize}px "Barlow", Arial, sans-serif`;
+                        let textMetrics = ctx.measureText(b.username);
+                        let textWidth = textMetrics.width;
+
+                        // Constrain to ~90% of object width
+                        const maxWidth = visualWidth * 0.9;
+
+                        if (textWidth > maxWidth) {
+                            const scaleFactor = maxWidth / textWidth;
+                            fontSize = Math.max(10, fontSize * scaleFactor); // Don't go below 10px
+                            ctx.font = `800 ${fontSize}px "Barlow", Arial, sans-serif`;
+                        }
+
+                        ctx.fillStyle = 'white'; ctx.strokeStyle = 'black';
+                        ctx.save();
+                        ctx.translate(b.position.x, b.position.y);
+                        ctx.rotate(b.angle);
+                        ctx.strokeText(b.username, 0, 0);
+                        ctx.fillText(b.username, 0, 0);
+                        ctx.restore();
+                    }
+                });
+            });
+
+            // --- SOUND PLAYBACK ---
+            function playSound(type, scale = 1.0) {
+                // Pitch Formula: 1.0 / scale
+                // 0.5 scale -> 2.0 playback rate (fast/high)
+                // 2.0 scale -> 0.5 playback rate (slow/low)
+                const rate = 1.0 / scale;
+
+                if (type === 'toaster') {
+                    AudioManager.play('toaster', rate);
+                } else if (type === 'duck') {
+                    const idx = Math.ceil(Math.random() * 6);
+                    AudioManager.play(`duck${idx}`, rate);
+                }
+            }
+
+            // --- COLLISION LOGIC ---
+            Events.on(engine, 'collisionStart', (event) => {
+                event.pairs.forEach((pair) => {
+                    const bodyA = pair.bodyA;
+                    const bodyB = pair.bodyB;
+
+                    // Allow Wall Collisions (Removed isStatic check)
+
+                    const impact = bodyA.speed + bodyB.speed;
+                    if (impact > 2.0) {
+                        // Play sound for Body A
+                        if (bodyA.bodyType) {
+                            playSound(bodyA.bodyType, bodyA.scaleMult || 1.0);
+                        }
+
+                        // Play sound for Body B
+                        if (bodyB.bodyType) {
+                            // Don't double play if two objects hit each other?
+                            // Actually, maybe we do want both sounds if a duck hits a toaster.
+                            // But if duck hits duck, maybe just one?
+                            // Let's keep it simple: Sound for every entity involved in a hard hit.
+                            playSound(bodyB.bodyType, bodyB.scaleMult || 1.0);
+                        }
+
+                        // Shockwave
+                        if ((bodyA.bodyType === 'toaster' || bodyB.bodyType === 'toaster') && impact > 5.0) {
+                            const origin = bodyA.bodyType === 'toaster' ? bodyA : bodyB;
+                            Composite.allBodies(engine.world).forEach(b => {
+                                if (b === origin || b.isStatic) return;
+                                const dist = Vector.magnitude(Vector.sub(b.position, origin.position));
+                                if (dist < 250) {
+                                    const dir = Vector.normalise(Vector.sub(b.position, origin.position));
+                                    Body.applyForce(b, b.position, Vector.mult(dir, 0.1 * (impact/10)));
+                                }
+                            });
+                        }
+                    }
+                });
+            });
+
+            // --- SPAWN LOGIC ---
+            function spawnEvent(username) {
+                const x = Math.random() * (window.innerWidth - 100) + 50;
+                const isDuck = Math.random() < 0.5;
+
+                // Random Scale: 1.0x to 2.5x (Bigger sizes requested)
+                const scaleMult = 1.0 + Math.random() * 1.5;
+
+                let body;
+                if (isDuck) {
+                    const size = 60 * scaleMult; // Increased base from 50 to 60
+                    body = Bodies.circle(x, -100, size/2, {
+                        restitution: 0.9, density: 0.001, friction: 0.05,
+                        render: { sprite: { texture: duckTexturePath, xScale: size/512, yScale: size/512 } }
+                    });
+                    body.bodyType = 'duck';
+                    body.visualSize = size;
+                } else {
+                    const w = 80 * scaleMult; // Increased base from 70 to 80
+                    const h = 60 * scaleMult; // Increased base from 50 to 60
+                    // Reduced visual padding by scaling sprite up 15% relative to body
+                    const paddingScale = 1.15;
+                    body = Bodies.rectangle(x, -100, w, h, {
+                        restitution: 0.1, density: 0.05, friction: 0.5,
+                        render: { sprite: { texture: toasterTexturePath, xScale: (w/500) * paddingScale, yScale: (h/500) * paddingScale } }
+                    });
+                    body.bodyType = 'toaster';
+                    body.visualSize = w;
+                }
+
+                body.scaleMult = scaleMult; // Store for pitch calc
+                body.username = username;
+                Composite.add(engine.world, body);
+            }
+
+            // --- LIGHTNING PROCESSOR (Luma Key) ---
+            function processLightning(video, canvas) {
+                if (video.paused || video.ended) return;
+
+                // Match canvas size to window for full coverage
+                if (canvas.width !== window.innerWidth) canvas.width = window.innerWidth;
+                if (canvas.height !== window.innerHeight) canvas.height = window.innerHeight;
+
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+                // Draw video frame scaled to cover
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Get pixel data
+                const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const l = frame.data.length;
+
+                // Apply Luminance-to-Alpha
+                for (let i = 0; i < l; i += 4) {
+                    const r = frame.data[i];
+                    const g = frame.data[i + 1];
+                    const b = frame.data[i + 2];
+
+                    // Brightness determines alpha
+                    // Black (0,0,0) -> Alpha 0
+                    // White (255,255,255) -> Alpha 255
+                    const brightness = (r + g + b) / 3;
+                    frame.data[i + 3] = brightness;
+                }
+
+                ctx.putImageData(frame, 0, 0);
+                requestAnimationFrame(() => processLightning(video, canvas));
+            }
+
+            // --- SHOWSTOPPER LOGIC ---
+            function triggerShowstopper(username) {
+                const container = document.getElementById('showstopper-container');
+                const bgSrc = document.getElementById('lightning-bg-src');
+                const fgSrc = document.getElementById('lightning-fg-src');
+                const bgCvs = document.getElementById('cvs-bg');
+                const fgCvs = document.getElementById('cvs-fg');
+                const img = document.getElementById('showstopper-img');
+
+                // Reset Visuals
+                container.style.display = 'block';
+                img.style.transform = 'translate(-50%, -50%) scale(0)';
+                bgCvs.style.display = 'none';
+                fgCvs.style.display = 'none';
+
+                // 1. Play Sound
+                AudioManager.play('showstopper');
+
+                // 2. Animate Image In (Pop effect)
+                requestAnimationFrame(() => {
+                    setTimeout(() => { img.style.transform = 'translate(-50%, -50%) scale(1)'; }, 10);
+                });
+
+                // 3. Start Chaos & Lightning after delay
+                setTimeout(() => {
+                    bgCvs.style.display = 'block';
+                    fgCvs.style.display = 'block';
+
+                    bgSrc.currentTime = 0; fgSrc.currentTime = 0;
+                    bgSrc.play().then(() => processLightning(bgSrc, bgCvs)).catch(e=>{});
+                    fgSrc.play().then(() => processLightning(fgSrc, fgCvs)).catch(e=>{});
+
+                    // Wind Chaos Loop
+                    const windInterval = setInterval(() => {
+                         Composite.allBodies(engine.world).forEach(b => {
+                             if (!b.isStatic) {
+                                 // Apply erratic forces
+                                 Body.applyForce(b, b.position, {
+                                     x: (Math.random() - 0.5) * 0.2 * b.mass,
+                                     y: (Math.random() - 0.5) * 0.2 * b.mass
+                                 });
+                             }
+                         });
+                    }, 50);
+
+                    // 4. End Sequence (2.06s later)
+                    setTimeout(() => {
+                        clearInterval(windInterval);
+                        container.style.display = 'none';
+                        bgSrc.pause();
+                        fgSrc.pause();
+
+                        // Drop Physics Body
+                        spawnShowstopperBody(username);
+
+                    }, 2100);
+
+                }, 800);
+            }
+
+            function spawnShowstopperBody(username) {
+                const radius = 125; // Smaller size (Diameter 250)
+                const textureSize = 500; // Assume 500x500 source
+                // Scale sprite up by 1.3 to remove visual padding (image is smaller than canvas)
+                const paddingScale = 1.3;
+
+                const body = Bodies.circle(window.innerWidth/2, -300, radius, {
+                    restitution: 0.3, density: 0.1, friction: 0.5,
+                    render: { sprite: { texture: showstopperTexturePath, xScale: ((radius*2)/textureSize) * paddingScale, yScale: ((radius*2)/textureSize) * paddingScale } }
+                });
+
+                body.bodyType = 'toaster'; // Reuse impact sounds
+                body.scaleMult = 0.25; // Higher pitch (rate = 1.0/0.25 = 4.0)
+                body.username = username;
+                body.visualSize = radius * 2; // Store diameter for text scaling
+
+                Composite.add(engine.world, body);
+            }
+
+            window.triggerShowstopper = triggerShowstopper; // Expose for testing
+
+            // --- START ---
+            Runner.run(Runner.create(), engine);
+            Render.run(render);
+
+            // --- STREAMER.BOT ---
+            const client = new StreamerbotClient({ host: '127.0.0.1', port: 8080, endpoint: '/', autoReconnect: true });
+
+            client.on('Connect', () => {
+                client.subscribe({
+                    "Twitch": [
+                        "Follow",
+                        "Cheer",
+                        "Subscribe",
+                        "ReSubscribe",
+                        "GiftSubscription",
+                        "Subscription",
+                        "GiftSub",
+                        "Sub",
+                        "ChatMessage"
+                    ],
+                    "General": ["Custom"]
+                });
+            });
+
+            function getSafeData(payload) { return payload.data ? payload.data : payload; }
+
+            function getName(payload) {
+                const d = getSafeData(payload);
+                if (typeof d.user === 'string') return d.user;
+                if (d.user_name) return d.user_name;
+                if (d.display_name) return d.display_name;
+                if (d.displayName) return d.displayName;
+                if (d.userName) return d.userName;
+
+                if (d.user && typeof d.user === 'object') {
+                    if (d.user.name) return d.user.name;
+                    if (d.user.display_name) return d.user.display_name;
+                    if (d.user.displayName) return d.user.displayName;
+                    if (d.user.login) return d.user.login;
+                }
+
+                if (d.sender && typeof d.sender === 'object') {
+                     if (d.sender.name) return d.sender.name;
+                     if (d.sender.display_name) return d.sender.display_name;
+                }
+
+                if (d.name) return d.name;
+                return "User";
+            }
+
+            client.on('Twitch.Follow', (p) => spawnEvent(getName(p)));
+            client.on('Twitch.Cheer', (p) => spawnEvent(getName(p)));
+
+            // Handle all sub variations
+            const handleSub = (p) => triggerShowstopper(getName(p));
+            client.on('Twitch.Subscribe', handleSub);
+            client.on('Twitch.ReSubscribe', handleSub);
+            client.on('Twitch.GiftSubscription', handleSub);
+            client.on('Twitch.Subscription', handleSub);
+            client.on('Twitch.GiftSub', handleSub);
+            client.on('Twitch.Sub', handleSub);
+
+            window.spawnEvent = spawnEvent;
+
+            // Garbage Collector
+            setInterval(() => {
+                const bodies = Composite.allBodies(engine.world);
+                bodies.forEach(body => {
+                    if (body.position.y > window.innerHeight + 2000) Composite.remove(engine.world, body);
+                });
+            }, 2000);
+
+            // Robust Flush Logic
+            var isPitOpen = false;
+            window.openPit = () => {
+                if (isPitOpen) return;
+                isPitOpen = true;
+
+                const ground = Composite.allBodies(engine.world).find(b => b.isStatic && b.position.y > window.innerHeight);
+                if(ground) Composite.remove(engine.world, ground);
+
+                // Wake up and flush all dynamic bodies
+                Composite.allBodies(engine.world).forEach(body => {
+                    if (!body.isStatic) {
+                        Sleeping.set(body, false);
+                        Body.setVelocity(body, { x: (Math.random() - 0.5) * 5, y: 15 });
+                    }
+                });
+
+                setTimeout(() => {
+                    if(ground) {
+                        Body.setPosition(ground, { x: window.innerWidth / 2, y: window.innerHeight + 100 });
+                        Body.setVelocity(ground, { x: 0, y: 0 });
+                        Composite.add(engine.world, ground);
+                    }
+                    isPitOpen = false;
+                }, 5000);
+            };
+
+            // --- FLUSH COMMANDS ---
+            client.on('Twitch.ChatMessage', (payload) => {
+                const d = getSafeData(payload);
+                const msg = d.message?.message || d.message || "";
+                if (msg.trim().toLowerCase() === "!flushpit") {
+                    window.openPit();
+                }
+            });
+
+            client.on('General.Custom', (payload) => {
+                const raw = JSON.stringify(payload);
+                if (raw.includes("OpenPit")) window.openPit();
+            });
+
+        })();
+    </script>
+</body>
+</html>
