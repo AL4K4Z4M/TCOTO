@@ -109,11 +109,20 @@ function handleStreamerBotData(payload) {
         multipleSplats(parseInt(Math.random() * 5) + 3);
     }
 
-    // 2. Chat Commands
+    // 2. Chat Commands (Native Streamer.bot Actions)
     if (payload.event && payload.event.source === 'Command') {
         const cmd = payload.data.command.toLowerCase();
         if (cmd === '!splash') {
-             // Trigger a random splash
+             multipleSplats(parseInt(Math.random() * 10) + 5);
+        }
+    }
+
+    // 3. Raw Chat Messages (Twitch) - Fallback if no Action is defined
+    if (payload.event && payload.event.source === 'Twitch' && payload.event.type === 'ChatMessage') {
+        const msgObj = payload.data.message;
+        const msg = (msgObj.message || msgObj || "").toString();
+
+        if (msg.trim().toLowerCase().startsWith('!splash')) {
              multipleSplats(parseInt(Math.random() * 10) + 5);
         }
     }
