@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streamer.bot The Pit</title>
+
+    <!-- Global CSS -->
+    <link rel="stylesheet" href="../shared/css/common.css">
+
+    <!-- Tailwind CSS (CDN for UI) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Matter.js Physics Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+
+    <!-- Streamer.bot Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@streamerbot/client/dist/streamerbot-client.js"></script>
+
+    <style>
+        /* Side Menu Transition */
+        #settings-panel {
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            transform: translateX(100%);
+        }
+        #settings-panel.open {
+            transform: translateX(0);
+        }
+
+        /* Glass effect for menu */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border-left: 1px solid rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- PHYSICS CONTAINER -->
+    <div id="physics-container"></div>
+
+    <!-- UI: SETTINGS BUTTON -->
+    <button onclick="toggleMenu()" class="fixed top-4 right-4 z-50 p-2 bg-white/50 hover:bg-white rounded-full shadow-lg transition group">
+        <span class="text-xl group-hover:rotate-90 transition-transform block">⚙️</span>
+    </button>
+
+    <!-- UI: SLIDE-OUT MENU -->
+    <div id="settings-panel" class="fixed top-0 right-0 h-full w-80 glass-panel shadow-2xl z-[60] p-6 flex flex-col">
+        <div class="flex justify-between items-center mb-8 border-b border-slate-300 pb-4">
+            <h2 class="text-2xl font-black text-slate-800 uppercase italic">The Pit</h2>
+            <button onclick="toggleMenu()" class="text-slate-400 hover:text-red-500 font-bold">CLOSE</button>
+        </div>
+
+        <div class="space-y-6 flex-grow">
+            <!-- Theme Selector -->
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Select Theme</label>
+                <div class="space-y-2">
+                    <button onclick="switchTheme('ballpit')" class="w-full text-left px-4 py-3 rounded-xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-md transition flex items-center gap-3 group">
+                        <span class="text-2xl">🎱</span>
+                        <div>
+                            <div class="font-bold text-slate-700 group-hover:text-blue-600">Ballpit</div>
+                            <div class="text-[10px] text-slate-400">Classic chaos</div>
+                        </div>
+                    </button>
+
+                    <button onclick="switchTheme('ducks')" class="w-full text-left px-4 py-3 rounded-xl bg-white border border-slate-200 hover:border-yellow-400 hover:shadow-md transition flex items-center gap-3 group">
+                        <span class="text-2xl">🦆</span>
+                        <div>
+                            <div class="font-bold text-slate-700 group-hover:text-yellow-600">Ducks & Toasters</div>
+                            <div class="text-[10px] text-slate-400">Bath time fun</div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Actions</label>
+                <button onclick="engine.flushPit()" class="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded border border-red-200 transition">
+                    FLUSH PIT
+                </button>
+            </div>
+        </div>
+
+        <div class="text-center text-[10px] text-slate-400">
+            Powered by Streamer.bot
+        </div>
+    </div>
+
+    <!-- MAIN LOGIC -->
+    <script type="module">
+        import { PhysicsEngine } from './js/engine.js';
+        import { ThemeManager } from './js/theme_manager.js';
+        import { BallpitTheme } from './themes/ballpit/ballpit_theme.js';
+        import { DucksTheme } from './themes/ducks/ducks_theme.js';
+
+        // 1. Setup Engine
+        const engine = new PhysicsEngine('physics-container');
+        window.engine = engine; // Expose globally for UI button
+
+        engine.start();
+
+        // 2. Setup Themes
+        const themeManager = new ThemeManager(engine);
+        const ballpit = new BallpitTheme(engine);
+        const ducks = new DucksTheme(engine);
+
+        themeManager.registerTheme('ballpit', ballpit);
+        themeManager.registerTheme('ducks', ducks);
+
+        // 3. Expose Theme Switcher to Global Scope (for HTML onclick)
+        window.switchTheme = (name) => {
+            themeManager.switchTheme(name);
+        };
+
+        // 4. Load Default Theme
+        // Open menu by default
+        document.getElementById('settings-panel').classList.add('open');
+
+        // Start with Ballpit
+        themeManager.switchTheme('ballpit');
+
+        // 5. Setup Streamer.bot
+        const client = new StreamerbotClient({
+            host: '127.0.0.1',
+            port: 8080,
+            endpoint: '/',
+            autoReconnect: true
+        });
+
+        client.on('Connect', () => {
+            console.log('Connected to Streamer.bot');
+            client.subscribe({
+                "Twitch": [
+                    "Follow", "ChatMessage", "Cheer", "Subscribe",
+                    "ReSubscribe", "GiftSubscription", "Sub"
+                ]
+            });
+        });
+
+        client.on('Twitch.Follow', (d) => themeManager.handleEvent('Twitch.Follow', d));
+        client.on('Twitch.Subscribe', (d) => themeManager.handleEvent('Twitch.Subscribe', d));
+        client.on('Twitch.ReSubscribe', (d) => themeManager.handleEvent('Twitch.ReSubscribe', d));
+        client.on('Twitch.GiftSubscription', (d) => themeManager.handleEvent('Twitch.GiftSubscription', d));
+        client.on('Twitch.Sub', (d) => themeManager.handleEvent('Twitch.Sub', d));
+        client.on('Twitch.Cheer', (d) => themeManager.handleEvent('Twitch.Cheer', d));
+        client.on('Twitch.ChatMessage', (d) => {
+            // Global Flush Check
+            const msg = (d.data?.message?.message || d.data?.message || "").trim().toLowerCase();
+            if (msg === "!flushpit") {
+                engine.flushPit();
+            } else {
+                themeManager.handleEvent('Twitch.ChatMessage', d);
+            }
+        });
+
+        // UI Toggle
+        window.toggleMenu = () => {
+            const el = document.getElementById('settings-panel');
+            el.classList.toggle('open');
+        };
+
+    </script>
+</body>
+</html>
