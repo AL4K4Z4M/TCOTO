@@ -113,16 +113,25 @@ function applyProfile(profileName) {
 // --- STREAMER.BOT INTEGRATION ---
 
 // Initialize Client
-const client = new StreamerbotClient({
-    host: '127.0.0.1',
-    port: 8080,
-    endpoint: '/',
-    autoReconnect: true,
-    subscribe: '*', // Subscribe to everything to ensure Commands are caught
-    onData: (data) => {
-        handleStreamerBotData(data);
+let client;
+try {
+    if (typeof StreamerbotClient !== 'undefined') {
+        client = new StreamerbotClient({
+            host: '127.0.0.1',
+            port: 8080,
+            endpoint: '/',
+            autoReconnect: true,
+            subscribe: '*', // Subscribe to everything to ensure Commands are caught
+            onData: (data) => {
+                handleStreamerBotData(data);
+            }
+        });
+    } else {
+        console.warn('StreamerbotClient is undefined. Offline mode active.');
     }
-});
+} catch (error) {
+    console.error('Failed to initialize StreamerbotClient:', error);
+}
 
 function handleStreamerBotData(payload) {
     const event = payload.event || {};
