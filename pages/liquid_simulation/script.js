@@ -88,6 +88,28 @@ if (!ext.supportLinearFiltering) {
 
 // startGUI(); // GUI hidden as per configuration
 
+// --- CONFIG PROFILES ---
+const PROFILES = {
+    HIGH: {
+        SPLAT_RADIUS: 5,
+        DENSITY_DISSIPATION: 0.5,
+        VELOCITY_DISSIPATION: 0.13,
+        CURL: 12
+    },
+    LOW: {
+        SPLAT_RADIUS: 0.5,
+        DENSITY_DISSIPATION: 2.5,
+        VELOCITY_DISSIPATION: 1.0,
+        CURL: 0
+    }
+};
+
+function applyProfile(profileName) {
+    const profile = PROFILES[profileName];
+    if (!profile) return;
+    Object.assign(config, profile);
+}
+
 // --- STREAMER.BOT INTEGRATION ---
 
 // Initialize Client
@@ -103,28 +125,49 @@ const client = new StreamerbotClient({
 });
 
 function handleStreamerBotData(payload) {
-    // 1. Twitch Follow
-    if (payload.event && payload.event.source === 'Twitch' && payload.event.type === 'Follow') {
-        // Trigger a medium splash
+    const event = payload.event || {};
+    const source = event.source || "";
+    const type = event.type || "";
+
+    // 1. HIGH INTENSITY EVENTS (Subs, Cheers, Raids)
+    const isSub = ['Twitch.Subscribe', 'Twitch.ReSubscribe', 'Twitch.GiftSubscription', 'Twitch.Subscription', 'Twitch.GiftSub', 'Twitch.Sub'].includes(source + '.' + type);
+    const isCheer = (source === 'Twitch' && type === 'Cheer');
+    const isRaid = (source === 'Twitch' && type === 'Raid');
+
+    if (isSub || isCheer || isRaid) {
+        applyProfile('HIGH');
+        // Large Splash
+        multipleSplats(parseInt(Math.random() * 10) + 10);
+        return;
+    }
+
+    // 2. LOW INTENSITY EVENTS (Follows)
+    if (source === 'Twitch' && type === 'Follow') {
+        applyProfile('LOW');
+        // Medium Splash
         multipleSplats(parseInt(Math.random() * 5) + 3);
+        return;
     }
 
-    // 2. Chat Commands (Native Streamer.bot Actions)
-    if (payload.event && payload.event.source === 'Command') {
+    // 3. COMMANDS (Low Intensity)
+    let isCommand = false;
+
+    // Native Action
+    if (source === 'Command') {
         const cmd = payload.data.command.toLowerCase();
-        if (cmd === '!splash') {
-             multipleSplats(parseInt(Math.random() * 10) + 5);
-        }
+        if (cmd === '!splash') isCommand = true;
     }
 
-    // 3. Raw Chat Messages (Twitch) - Fallback if no Action is defined
-    if (payload.event && payload.event.source === 'Twitch' && payload.event.type === 'ChatMessage') {
+    // Chat Fallback
+    if (source === 'Twitch' && type === 'ChatMessage') {
         const msgObj = payload.data.message;
         const msg = (msgObj.message || msgObj || "").toString();
+        if (msg.trim().toLowerCase().startsWith('!splash')) isCommand = true;
+    }
 
-        if (msg.trim().toLowerCase().startsWith('!splash')) {
-             multipleSplats(parseInt(Math.random() * 10) + 5);
-        }
+    if (isCommand) {
+        applyProfile('LOW');
+        multipleSplats(parseInt(Math.random() * 5) + 5);
     }
 }
 
