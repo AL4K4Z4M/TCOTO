@@ -30,22 +30,22 @@ const canvas = document.getElementsByTagName('canvas')[0];
 resizeCanvas();
 
 let config = {
-    SIM_RESOLUTION: 128,
+    SIM_RESOLUTION: 256,
     DYE_RESOLUTION: 1024,
     CAPTURE_RESOLUTION: 512,
-    DENSITY_DISSIPATION: 1,
-    VELOCITY_DISSIPATION: 0.2,
+    DENSITY_DISSIPATION: 0.5,
+    VELOCITY_DISSIPATION: 0.13,
     PRESSURE: 0.8,
     PRESSURE_ITERATIONS: 20,
-    CURL: 30,
-    SPLAT_RADIUS: 0.25,
+    CURL: 12,
+    SPLAT_RADIUS: 5,
     SPLAT_FORCE: 6000,
     SHADING: true,
     COLORFUL: true,
     COLOR_UPDATE_SPEED: 10,
     PAUSED: false,
     BACK_COLOR: { r: 0, g: 0, b: 0 },
-    TRANSPARENT: false,
+    TRANSPARENT: true, // Default to true for overlay usage
     BLOOM: true,
     BLOOM_ITERATIONS: 8,
     BLOOM_RESOLUTION: 256,
@@ -86,7 +86,92 @@ if (!ext.supportLinearFiltering) {
     config.SUNRAYS = false;
 }
 
-startGUI();
+// startGUI(); // GUI hidden as per configuration
+
+// --- CONFIG PROFILES ---
+const PROFILES = {
+    HIGH: {
+        SPLAT_RADIUS: 5,
+        DENSITY_DISSIPATION: 0.5,
+        VELOCITY_DISSIPATION: 0.13,
+        CURL: 12
+    },
+    LOW: {
+        SPLAT_RADIUS: 0.5,
+        DENSITY_DISSIPATION: 2.5,
+        VELOCITY_DISSIPATION: 1.0,
+        CURL: 0
+    }
+};
+
+function applyProfile(profileName) {
+    const profile = PROFILES[profileName];
+    if (!profile) return;
+    Object.assign(config, profile);
+}
+
+// --- STREAMER.BOT INTEGRATION ---
+
+// Initialize Client
+const client = new StreamerbotClient({
+    host: '127.0.0.1',
+    port: 8080,
+    endpoint: '/',
+    autoReconnect: true,
+    subscribe: '*', // Subscribe to everything to ensure Commands are caught
+    onData: (data) => {
+        handleStreamerBotData(data);
+    }
+});
+
+function handleStreamerBotData(payload) {
+    const event = payload.event || {};
+    const source = event.source || "";
+    const type = event.type || "";
+
+    // 1. HIGH INTENSITY EVENTS (Subs, Cheers, Raids)
+    const isSub = ['Twitch.Subscribe', 'Twitch.ReSubscribe', 'Twitch.GiftSubscription', 'Twitch.Subscription', 'Twitch.GiftSub', 'Twitch.Sub'].includes(source + '.' + type);
+    const isCheer = (source === 'Twitch' && type === 'Cheer');
+    const isRaid = (source === 'Twitch' && type === 'Raid');
+
+    if (isSub || isCheer || isRaid) {
+        applyProfile('HIGH');
+        // Large Splash
+        multipleSplats(parseInt(Math.random() * 10) + 10);
+        return;
+    }
+
+    // 2. LOW INTENSITY EVENTS (Follows)
+    if (source === 'Twitch' && type === 'Follow') {
+        applyProfile('LOW');
+        // Medium Splash
+        multipleSplats(parseInt(Math.random() * 5) + 3);
+        return;
+    }
+
+    // 3. COMMANDS (Low Intensity)
+    let isCommand = false;
+
+    // Native Action
+    if (source === 'Command') {
+        const cmd = payload.data.command.toLowerCase();
+        if (cmd === '!splash') isCommand = true;
+    }
+
+    // Chat Fallback
+    if (source === 'Twitch' && type === 'ChatMessage') {
+        const msgObj = payload.data.message;
+        const msg = (msgObj.message || msgObj || "").toString();
+        if (msg.trim().toLowerCase().startsWith('!splash')) isCommand = true;
+    }
+
+    if (isCommand) {
+        applyProfile('LOW');
+        multipleSplats(parseInt(Math.random() * 5) + 5);
+    }
+}
+
+// --------------------------------
 
 function getWebGLContext (canvas) {
     const params = { alpha: true, depth: false, stencil: false, antialias: false, preserveDrawingBuffer: false };
@@ -106,7 +191,8 @@ function getWebGLContext (canvas) {
         supportLinearFiltering = gl.getExtension('OES_texture_half_float_linear');
     }
 
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    // Set clear color to fully transparent
+    gl.clearColor(0.0, 0.0, 0.0, 0.0);
 
     const halfFloatTexType = isWebGL2 ? gl.HALF_FLOAT : halfFloat.HALF_FLOAT_OES;
     let formatRGBA;
@@ -179,7 +265,18 @@ function supportRenderTextureFormat (gl, internalFormat, format, type) {
 }
 
 function startGUI () {
-    var gui = new dat.GUI({ width: 300 });
+    // autoPlace: false allows us to append it manually
+    var gui = new dat.GUI({ width: 300, autoPlace: false });
+
+    // Append to our custom container
+    const guiContainer = document.getElementById('gui-container');
+    if (guiContainer) {
+        guiContainer.appendChild(gui.domElement);
+    } else {
+        // Fallback if container missing
+        document.body.appendChild(gui.domElement);
+    }
+
     gui.add(config, 'DYE_RESOLUTION', { 'high': 1024, 'medium': 512, 'low': 256, 'very low': 128 }).name('quality').onFinishChange(initFramebuffers);
     gui.add(config, 'SIM_RESOLUTION', { '32': 32, '64': 64, '128': 128, '256': 256 }).name('sim resolution').onFinishChange(initFramebuffers);
     gui.add(config, 'DENSITY_DISSIPATION', 0, 4.0).name('density diffusion');
@@ -1276,20 +1373,13 @@ function render (target) {
 
     if (!config.TRANSPARENT)
         drawColor(target, normalizeColor(config.BACK_COLOR));
-    if (target == null && config.TRANSPARENT)
-        drawCheckerboard(target);
+    // Checkerboard removed for true transparency
     drawDisplay(target);
 }
 
 function drawColor (target, color) {
     colorProgram.bind();
     gl.uniform4f(colorProgram.uniforms.color, color.r, color.g, color.b, 1);
-    blit(target);
-}
-
-function drawCheckerboard (target) {
-    checkerboardProgram.bind();
-    gl.uniform1f(checkerboardProgram.uniforms.aspectRatio, canvas.width / canvas.height);
     blit(target);
 }
 

@@ -784,9 +784,6 @@
             { id: 'liquidsim', name: 'Liquid Sim', icon: '💧', file: 'pages/liquid_simulation/liquid_sim.html' },
         ];
 
-        // Internal State
-        const loadedApps = {};
-
         // --- STREAMER.BOT SETUP ---
         const client = new StreamerbotClient({
             host: '127.0.0.1',
@@ -1245,8 +1242,6 @@
                 btnDiv.onclick = () => launchApp(app.id);
                 btnDiv.innerHTML = `<div class="app-icon-visual">${app.icon}</div><span class="app-label">${app.name}</span>`;
                 menuLayer.appendChild(btnDiv);
-
-                loadedApps[app.id] = false;
             });
         }
 
@@ -1348,25 +1343,29 @@
             const appConfig = OVERLAYS.find(a => a.id === targetId);
             if (!appConfig) return;
 
-            const targetFrame = document.getElementById(`frame-${targetId}`);
-            const targetBtn = document.getElementById(`btn-${targetId}`);
-
             toggleSettings(false);
 
             OVERLAYS.forEach(app => {
-                document.getElementById(`frame-${app.id}`).classList.remove('open');
-                document.getElementById(`btn-${app.id}`).classList.remove('active');
+                const frame = document.getElementById(`frame-${app.id}`);
+                const btn = document.getElementById(`btn-${app.id}`);
+                const iframe = document.getElementById(`iframe-${app.id}`);
+
+                if (app.id === targetId) {
+                    // Activate Target and RELOAD it
+                    frame.classList.add('open');
+                    btn.classList.add('active');
+                    iframe.src = app.file;
+                    console.log(`TCOTO: Launching ${app.id}...`);
+                } else {
+                    // Deactivate others and UNLOAD them
+                    frame.classList.remove('open');
+                    btn.classList.remove('active');
+                    // Setting src to about:blank stops scripts and audio immediately
+                    if (iframe.src !== 'about:blank') {
+                        iframe.src = 'about:blank';
+                    }
+                }
             });
-
-            targetFrame.classList.add('open');
-            targetBtn.classList.add('active');
-
-            if (!loadedApps[targetId]) {
-                const iframe = document.getElementById(`iframe-${targetId}`);
-                iframe.src = appConfig.file;
-                loadedApps[targetId] = true;
-                console.log(`TCOTO: Loading ${targetId}...`);
-            }
         }
 
         // --- DEBUG MENU FUNCTIONS ---

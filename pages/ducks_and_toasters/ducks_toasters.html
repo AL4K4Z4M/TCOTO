@@ -321,9 +321,12 @@
             });
 
             // --- SPAWN LOGIC ---
-            function spawnEvent(username) {
+            function spawnEvent(username, forcedType = null) {
                 const x = Math.random() * (window.innerWidth - 100) + 50;
-                const isDuck = Math.random() < 0.5;
+                let isDuck = Math.random() < 0.5;
+
+                if (forcedType === 'duck') isDuck = true;
+                if (forcedType === 'toaster') isDuck = false;
 
                 // Random Scale: 1.0x to 2.5x (Bigger sizes requested)
                 const scaleMult = 1.0 + Math.random() * 1.5;
@@ -572,9 +575,15 @@
             // --- FLUSH COMMANDS ---
             client.on('Twitch.ChatMessage', (payload) => {
                 const d = getSafeData(payload);
-                const msg = d.message?.message || d.message || "";
-                if (msg.trim().toLowerCase() === "!flushpit") {
+                const msg = (d.message?.message || d.message || "").trim().toLowerCase();
+                const username = getName(payload);
+
+                if (msg === "!flushpit") {
                     window.openPit();
+                } else if (msg.startsWith("!duck")) {
+                    spawnEvent(username, 'duck');
+                } else if (msg.startsWith("!toaster")) {
+                    spawnEvent(username, 'toaster');
                 }
             });
 
