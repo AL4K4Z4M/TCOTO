@@ -30,15 +30,15 @@ const canvas = document.getElementsByTagName('canvas')[0];
 resizeCanvas();
 
 let config = {
-    SIM_RESOLUTION: 128,
+    SIM_RESOLUTION: 256,
     DYE_RESOLUTION: 1024,
     CAPTURE_RESOLUTION: 512,
-    DENSITY_DISSIPATION: 1,
-    VELOCITY_DISSIPATION: 0.2,
+    DENSITY_DISSIPATION: 0.5,
+    VELOCITY_DISSIPATION: 0.13,
     PRESSURE: 0.8,
     PRESSURE_ITERATIONS: 20,
-    CURL: 30,
-    SPLAT_RADIUS: 0.25,
+    CURL: 12,
+    SPLAT_RADIUS: 5,
     SPLAT_FORCE: 6000,
     SHADING: true,
     COLORFUL: true,
@@ -86,7 +86,7 @@ if (!ext.supportLinearFiltering) {
     config.SUNRAYS = false;
 }
 
-startGUI();
+// startGUI(); // GUI hidden as per configuration
 
 // --- STREAMER.BOT INTEGRATION ---
 
