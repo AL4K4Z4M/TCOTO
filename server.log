@@ -1,0 +1,10 @@
+127.0.0.1 - - [13/Dec/2025 15:32:13] "GET /obs_tcoto.html HTTP/1.1" 200 -
+127.0.0.1 - - [13/Dec/2025 15:32:15] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [13/Dec/2025 15:32:16] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [13/Dec/2025 15:32:16] "GET /liquid_simulation/liquid_sim.html HTTP/1.1" 200 -
+127.0.0.1 - - [13/Dec/2025 15:32:16] "GET /liquid_simulation/script.js HTTP/1.1" 200 -
+127.0.0.1 - - [13/Dec/2025 15:32:16] "GET /liquid_simulation/dat.gui.min.js HTTP/1.1" 200 -
+127.0.0.1 - - [13/Dec/2025 15:32:17] "GET /liquid_simulation/LDR_LLL1_0.png HTTP/1.1" 200 -
+127.0.0.1 - - [13/Dec/2025 15:32:17] "GET /liquid_simulation/iconfont.ttf HTTP/1.1" 200 -
+127.0.0.1 - - [13/Dec/2025 15:32:18] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [13/Dec/2025 15:32:21] "GET / HTTP/1.1" 200 -
