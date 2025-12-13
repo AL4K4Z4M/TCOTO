@@ -406,31 +406,36 @@
 
 
             // --- STREAMER.BOT CONNECTION ---
-            var client = new StreamerbotClient({
-                host: '127.0.0.1',
-                port: 8080,
-                endpoint: '/',
-                autoReconnect: true
-            });
+            var client;
+            try {
+                if (typeof StreamerbotClient !== 'undefined') {
+                    client = new StreamerbotClient({
+                        host: '127.0.0.1',
+                        port: 8080,
+                        endpoint: '/',
+                        autoReconnect: true
+                    });
 
-            client.on('Connect', () => {
-                console.log('Connected');
-                client.subscribe({
-                    "Twitch": [
-                        "Follow",
-                        "ChatMessage",
-                        "Cheer",
-                        "Announcement",
-                        "Subscribe",
-                        "ReSubscribe",
-                        "GiftSubscription",
-                        "Subscription",
-                        "GiftSub",
-                        "Sub"
-                    ],
-                    "General": ["Custom"]
-                });
-            });
+                    client.on('Connect', () => {
+                        console.log('Connected');
+                        client.subscribe({
+                            "Twitch": [
+                                "Follow",
+                                "ChatMessage",
+                                "Cheer",
+                                "Announcement",
+                                "Subscribe",
+                                "ReSubscribe",
+                                "GiftSubscription",
+                                "Subscription",
+                                "GiftSub",
+                                "Sub"
+                            ],
+                            "General": ["Custom"]
+                        });
+                    });
+                }
+            } catch (e) { console.error("SB Client Init Error", e); }
 
             function getSafeData(payload) { return payload.data ? payload.data : payload; }
 
@@ -464,7 +469,7 @@
             }
 
             // 1. FOLLOWS
-            client.on('Twitch.Follow', (payload) => {
+            if (client) client.on('Twitch.Follow', (payload) => {
                 const username = getName(payload);
                 const dropType = determineDropType();
                 const radius = 15 + Math.random() * 70;
@@ -500,15 +505,17 @@
                 spawnEvent('normal', username, baseRadius, 0, false, "SUB", tierText);
             };
 
-            client.on('Twitch.Subscribe', handleSub);
-            client.on('Twitch.ReSubscribe', handleSub);
-            client.on('Twitch.GiftSubscription', handleSub);
-            client.on('Twitch.Subscription', handleSub);
-            client.on('Twitch.GiftSub', handleSub);
-            client.on('Twitch.Sub', handleSub);
+            if (client) {
+                client.on('Twitch.Subscribe', handleSub);
+                client.on('Twitch.ReSubscribe', handleSub);
+                client.on('Twitch.GiftSubscription', handleSub);
+                client.on('Twitch.Subscription', handleSub);
+                client.on('Twitch.GiftSub', handleSub);
+                client.on('Twitch.Sub', handleSub);
+            }
 
             // 2. CHEERS
-            client.on('Twitch.Cheer', (payload) => {
+            if (client) client.on('Twitch.Cheer', (payload) => {
                 const d = getSafeData(payload);
                 const username = getName(payload);
                 const bits = d.bits || 1;
@@ -563,7 +570,7 @@
             });
 
             // 3. CHAT COMMANDS
-            client.on('Twitch.ChatMessage', (payload) => {
+            if (client) client.on('Twitch.ChatMessage', (payload) => {
                 const d = getSafeData(payload);
                 const msg = d.message?.message || d.message || "";
                 const username = getName(payload);
@@ -578,7 +585,7 @@
             });
 
             // 4. CUSTOM EVENT
-            client.on('General.Custom', (payload) => {
+            if (client) client.on('General.Custom', (payload) => {
                 const raw = JSON.stringify(payload);
                 if (raw.includes("OpenPit")) openPit();
                 if (raw.includes("SpawnBall")) spawnEvent('normal', "Streamer", 30);
