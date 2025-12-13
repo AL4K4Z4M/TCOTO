@@ -45,7 +45,7 @@ let config = {
     COLOR_UPDATE_SPEED: 10,
     PAUSED: false,
     BACK_COLOR: { r: 0, g: 0, b: 0 },
-    TRANSPARENT: false,
+    TRANSPARENT: true, // Default to true for overlay usage
     BLOOM: true,
     BLOOM_ITERATIONS: 8,
     BLOOM_RESOLUTION: 256,
@@ -88,6 +88,39 @@ if (!ext.supportLinearFiltering) {
 
 startGUI();
 
+// --- STREAMER.BOT INTEGRATION ---
+
+// Initialize Client
+const client = new StreamerbotClient({
+    host: '127.0.0.1',
+    port: 8080,
+    endpoint: '/',
+    autoReconnect: true,
+    subscribe: '*', // Subscribe to everything to ensure Commands are caught
+    onData: (data) => {
+        handleStreamerBotData(data);
+    }
+});
+
+function handleStreamerBotData(payload) {
+    // 1. Twitch Follow
+    if (payload.event && payload.event.source === 'Twitch' && payload.event.type === 'Follow') {
+        // Trigger a medium splash
+        multipleSplats(parseInt(Math.random() * 5) + 3);
+    }
+
+    // 2. Chat Commands
+    if (payload.event && payload.event.source === 'Command') {
+        const cmd = payload.data.command.toLowerCase();
+        if (cmd === '!splash') {
+             // Trigger a random splash
+             multipleSplats(parseInt(Math.random() * 10) + 5);
+        }
+    }
+}
+
+// --------------------------------
+
 function getWebGLContext (canvas) {
     const params = { alpha: true, depth: false, stencil: false, antialias: false, preserveDrawingBuffer: false };
 
@@ -106,7 +139,8 @@ function getWebGLContext (canvas) {
         supportLinearFiltering = gl.getExtension('OES_texture_half_float_linear');
     }
 
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    // Set clear color to fully transparent
+    gl.clearColor(0.0, 0.0, 0.0, 0.0);
 
     const halfFloatTexType = isWebGL2 ? gl.HALF_FLOAT : halfFloat.HALF_FLOAT_OES;
     let formatRGBA;
@@ -179,7 +213,18 @@ function supportRenderTextureFormat (gl, internalFormat, format, type) {
 }
 
 function startGUI () {
-    var gui = new dat.GUI({ width: 300 });
+    // autoPlace: false allows us to append it manually
+    var gui = new dat.GUI({ width: 300, autoPlace: false });
+
+    // Append to our custom container
+    const guiContainer = document.getElementById('gui-container');
+    if (guiContainer) {
+        guiContainer.appendChild(gui.domElement);
+    } else {
+        // Fallback if container missing
+        document.body.appendChild(gui.domElement);
+    }
+
     gui.add(config, 'DYE_RESOLUTION', { 'high': 1024, 'medium': 512, 'low': 256, 'very low': 128 }).name('quality').onFinishChange(initFramebuffers);
     gui.add(config, 'SIM_RESOLUTION', { '32': 32, '64': 64, '128': 128, '256': 256 }).name('sim resolution').onFinishChange(initFramebuffers);
     gui.add(config, 'DENSITY_DISSIPATION', 0, 4.0).name('density diffusion');
@@ -1276,20 +1321,13 @@ function render (target) {
 
     if (!config.TRANSPARENT)
         drawColor(target, normalizeColor(config.BACK_COLOR));
-    if (target == null && config.TRANSPARENT)
-        drawCheckerboard(target);
+    // Checkerboard removed for true transparency
     drawDisplay(target);
 }
 
 function drawColor (target, color) {
     colorProgram.bind();
     gl.uniform4f(colorProgram.uniforms.color, color.r, color.g, color.b, 1);
-    blit(target);
-}
-
-function drawCheckerboard (target) {
-    checkerboardProgram.bind();
-    gl.uniform1f(checkerboardProgram.uniforms.aspectRatio, canvas.width / canvas.height);
     blit(target);
 }
 

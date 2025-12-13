@@ -17,6 +17,9 @@
         <meta property="og:description" content="A WebGL fluid simulation that works in mobile browsers.">
 
         <script type="text/javascript" src="dat.gui.min.js"></script>
+        <!-- Streamer.bot Client Library -->
+        <script src="https://cdn.jsdelivr.net/npm/@streamerbot/client/dist/streamerbot-client.js"></script>
+
         <style>
             @font-face {
                 font-family: 'iconfont';
@@ -29,7 +32,7 @@
 
             html, body {
                 overflow: hidden;
-                background-color: #000;
+                background-color: transparent; /* Changed from #000 to transparent */
             }
 
             body {
@@ -94,10 +97,83 @@
             .discord:before {
                 content: 'd';
             }
+
+            /* --- SIDEBAR GUI --- */
+            #gui-wrapper {
+                position: absolute;
+                top: 0;
+                right: 0;
+                height: 100%;
+                width: 300px; /* Width of the menu */
+                z-index: 9999;
+                transform: translateX(100%); /* Hidden by default */
+                transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+                display: flex;
+                pointer-events: none; /* Let clicks pass through empty space */
+            }
+
+            #gui-wrapper.open {
+                transform: translateX(0);
+            }
+
+            /* The visible menu container */
+            #gui-container {
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7); /* Dark background for contrast */
+                backdrop-filter: blur(10px);
+                pointer-events: auto;
+                overflow-y: auto;
+            }
+
+            /* The Toggle Button (Hitbox) */
+            #gui-trigger {
+                position: absolute;
+                top: 50%;
+                left: -40px; /* Stick out to the left */
+                width: 40px;
+                height: 80px;
+                background: rgba(255, 255, 255, 0.2);
+                border-radius: 10px 0 0 10px;
+                cursor: pointer;
+                pointer-events: auto;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transform: translateY(-50%);
+                color: white;
+                font-family: sans-serif;
+                font-weight: bold;
+                transition: background 0.2s;
+            }
+
+            #gui-trigger:hover {
+                background: rgba(255, 255, 255, 0.4);
+            }
+
+            /* Customizing dat.gui to fit */
+            .dg.main {
+                width: 100% !important;
+                margin-right: 0 !important;
+            }
         </style>
     </head>
     <body>
         <canvas></canvas>
+
+        <!-- GUI Sidebar -->
+        <div id="gui-wrapper">
+            <div id="gui-trigger" onclick="toggleGui()">⚙</div>
+            <div id="gui-container">
+                <!-- dat.gui will be appended here -->
+            </div>
+        </div>
+
         <script src="./script.js"></script>
+        <script>
+            function toggleGui() {
+                document.getElementById('gui-wrapper').classList.toggle('open');
+            }
+        </script>
     </body>
 </html>
