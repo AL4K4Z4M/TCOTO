@@ -36,12 +36,12 @@
     <!-- Showstopper Overlay Container -->
     <div id="showstopper-container" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:100;">
         <!-- Hidden source videos -->
-        <video id="lightning-bg-src" src="../assets/lightning_background.mp4" style="display:none;" muted playsinline></video>
-        <video id="lightning-fg-src" src="../assets/lightning_foreground.mp4" style="display:none;" muted playsinline></video>
+        <video id="lightning-bg-src" src="assets/lightning_background.mp4" style="display:none;" muted playsinline></video>
+        <video id="lightning-fg-src" src="assets/lightning_foreground.mp4" style="display:none;" muted playsinline></video>
 
         <!-- Render Canvases -->
         <canvas id="cvs-bg" style="display:none; position:absolute; width:100%; height:100%; z-index:10;"></canvas>
-        <img id="showstopper-img" src="../assets/Showstopper.png" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%) scale(0); transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index:20; max-width:80%; max-height:80%;">
+        <img id="showstopper-img" src="assets/Showstopper.png" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%) scale(0); transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index:20; max-width:80%; max-height:80%;">
         <canvas id="cvs-fg" style="display:none; position:absolute; width:100%; height:100%; z-index:30;"></canvas>
     </div>
 
@@ -53,7 +53,7 @@
                 buffers: {},
                 pool: {},
                 mode: 'unknown',
-                paths: ['assets/', '../assets/'],
+                paths: ['assets/'],
 
                 init: function() {
                     const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -160,9 +160,9 @@
             loadAll();
 
             // Image Loader
-            let duckTexturePath = '../assets/Rubber_Duck.png';
-            let toasterTexturePath = '../assets/Toaster.png';
-            let showstopperTexturePath = '../assets/Showstopper.png';
+            let duckTexturePath = 'assets/Rubber_Duck.png';
+            let toasterTexturePath = 'assets/Toaster.png';
+            let showstopperTexturePath = 'assets/Showstopper.png';
 
             const checkImage = (path) => new Promise(r => {
                 const img = new Image();
@@ -172,13 +172,13 @@
             });
 
             const resolveImages = async () => {
-                let p = await checkImage('assets/Rubber_Duck.png') || await checkImage('../assets/Rubber_Duck.png');
+                let p = await checkImage('assets/Rubber_Duck.png');
                 if (p) duckTexturePath = p;
 
-                p = await checkImage('assets/Toaster.png') || await checkImage('../assets/Toaster.png');
+                p = await checkImage('assets/Toaster.png');
                 if (p) toasterTexturePath = p;
 
-                p = await checkImage('assets/Showstopper.png') || await checkImage('../assets/Showstopper.png');
+                p = await checkImage('assets/Showstopper.png');
                 if (p) {
                     showstopperTexturePath = p;
                     document.getElementById('showstopper-img').src = p;
