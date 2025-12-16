@@ -462,24 +462,29 @@
             Render.run(render);
 
             // --- STREAMER.BOT ---
-            const client = new StreamerbotClient({ host: '127.0.0.1', port: 8080, endpoint: '/', autoReconnect: true });
+            let client;
+            try {
+                if (typeof StreamerbotClient !== 'undefined') {
+                    client = new StreamerbotClient({ host: '127.0.0.1', port: 8080, endpoint: '/', autoReconnect: true });
 
-            client.on('Connect', () => {
-                client.subscribe({
-                    "Twitch": [
-                        "Follow",
-                        "Cheer",
-                        "Subscribe",
-                        "ReSubscribe",
-                        "GiftSubscription",
-                        "Subscription",
-                        "GiftSub",
-                        "Sub",
-                        "ChatMessage"
-                    ],
-                    "General": ["Custom"]
-                });
-            });
+                    client.on('Connect', () => {
+                        client.subscribe({
+                            "Twitch": [
+                                "Follow",
+                                "Cheer",
+                                "Subscribe",
+                                "ReSubscribe",
+                                "GiftSubscription",
+                                "Subscription",
+                                "GiftSub",
+                                "Sub",
+                                "ChatMessage"
+                            ],
+                            "General": ["Custom"]
+                        });
+                    });
+                }
+            } catch (e) { console.error("SB Client Init Error", e); }
 
             function getSafeData(payload) { return payload.data ? payload.data : payload; }
 
@@ -507,17 +512,19 @@
                 return "User";
             }
 
-            client.on('Twitch.Follow', (p) => spawnEvent(getName(p)));
-            client.on('Twitch.Cheer', (p) => spawnEvent(getName(p)));
+            if (client) {
+                client.on('Twitch.Follow', (p) => spawnEvent(getName(p)));
+                client.on('Twitch.Cheer', (p) => spawnEvent(getName(p)));
 
-            // Handle all sub variations
-            const handleSub = (p) => triggerShowstopper(getName(p));
-            client.on('Twitch.Subscribe', handleSub);
-            client.on('Twitch.ReSubscribe', handleSub);
-            client.on('Twitch.GiftSubscription', handleSub);
-            client.on('Twitch.Subscription', handleSub);
-            client.on('Twitch.GiftSub', handleSub);
-            client.on('Twitch.Sub', handleSub);
+                // Handle all sub variations
+                const handleSub = (p) => triggerShowstopper(getName(p));
+                client.on('Twitch.Subscribe', handleSub);
+                client.on('Twitch.ReSubscribe', handleSub);
+                client.on('Twitch.GiftSubscription', handleSub);
+                client.on('Twitch.Subscription', handleSub);
+                client.on('Twitch.GiftSub', handleSub);
+                client.on('Twitch.Sub', handleSub);
+            }
 
             window.spawnEvent = spawnEvent;
 
@@ -557,24 +564,26 @@
             };
 
             // --- FLUSH COMMANDS ---
-            client.on('Twitch.ChatMessage', (payload) => {
-                const d = getSafeData(payload);
-                const msg = (d.message?.message || d.message || "").trim().toLowerCase();
-                const username = getName(payload);
+            if (client) {
+                client.on('Twitch.ChatMessage', (payload) => {
+                    const d = getSafeData(payload);
+                    const msg = (d.message?.message || d.message || "").trim().toLowerCase();
+                    const username = getName(payload);
 
-                if (msg === "!flushpit") {
-                    window.openPit();
-                } else if (msg.startsWith("!duck")) {
-                    spawnEvent(username, 'duck');
-                } else if (msg.startsWith("!toaster")) {
-                    spawnEvent(username, 'toaster');
-                }
-            });
+                    if (msg === "!flushpit") {
+                        window.openPit();
+                    } else if (msg.startsWith("!duck")) {
+                        spawnEvent(username, 'duck');
+                    } else if (msg.startsWith("!toaster")) {
+                        spawnEvent(username, 'toaster');
+                    }
+                });
 
-            client.on('General.Custom', (payload) => {
-                const raw = JSON.stringify(payload);
-                if (raw.includes("OpenPit")) window.openPit();
-            });
+                client.on('General.Custom', (payload) => {
+                    const raw = JSON.stringify(payload);
+                    if (raw.includes("OpenPit")) window.openPit();
+                });
+            }
 
         })();
     </script>

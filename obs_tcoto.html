@@ -782,20 +782,30 @@
             { id: 'ballpit', name: 'Ballpit', icon: '🎱', file: 'pages/ballpit/ballpit.html' },
             { id: 'ducks',   name: 'Ducks & Toasters', icon: '🦆', file: 'pages/ducks_and_toasters/ducks_toasters.html' },
             { id: 'liquidsim', name: 'Liquid Sim', icon: '💧', file: 'pages/liquid_simulation/liquid_sim.html' },
+            { id: 'thepit',  name: 'The Pit', icon: '🏟️', file: 'pages/thepit/thepit.html' },
         ];
 
         // --- STREAMER.BOT SETUP ---
-        const client = new StreamerbotClient({
-            host: '127.0.0.1',
-            port: 8080,
-            endpoint: '/',
-            autoReconnect: true,
-            subscribe: '*', // Subscribe to ALL events for Debugger
-            onData: (data) => {
-                // Forward to debug handler
-                if (window.handleDebugData) window.handleDebugData(data);
+        let client;
+        try {
+            if (typeof StreamerbotClient !== 'undefined') {
+                client = new StreamerbotClient({
+                    host: '127.0.0.1',
+                    port: 8080,
+                    endpoint: '/',
+                    autoReconnect: true,
+                    subscribe: '*', // Subscribe to ALL events for Debugger
+                    onData: (data) => {
+                        // Forward to debug handler
+                        if (window.handleDebugData) window.handleDebugData(data);
+                    }
+                });
+            } else {
+                console.warn("StreamerbotClient library not loaded. Check internet connection.");
             }
-        });
+        } catch (e) {
+            console.error("Streamer.bot Client Init Failed", e);
+        }
 
         let sessionFollows = 0;
 
@@ -922,83 +932,89 @@
         }
 
         // EVENT HANDLERS
-        client.on('Connect', () => {
-            console.log('TCOTO: Connected to Streamer.bot');
-            // client.subscribe(...) removed because 'subscribe: "*"' in config handles everything.
+        if (client) {
+            client.on('Connect', () => {
+                console.log('TCOTO: Connected to Streamer.bot');
+                // client.subscribe(...) removed because 'subscribe: "*"' in config handles everything.
 
-            // Fetch Initial Total Follower Count
-            client.request('GetBroadcaster', {}).then(resp => {
-                const count = resp.followerCount || resp.follower_count || resp.followercount || resp.totalFollowers || 0;
-                updateText('val-total-followers', count);
-            }).catch(err => console.log("Broadcaster Info Fetch Failed", err));
-        });
+                // Fetch Initial Total Follower Count
+                client.request('GetBroadcaster', {}).then(resp => {
+                    const count = resp.followerCount || resp.follower_count || resp.followercount || resp.totalFollowers || 0;
+                    updateText('val-total-followers', count);
+                }).catch(err => console.log("Broadcaster Info Fetch Failed", err));
+            });
 
-        // 1. FOLLOWS
-        client.on('Twitch.Follow', (payload) => {
-            sessionFollows++;
-            const name = getName(payload);
-            updateText('val-session-follows', `+${sessionFollows}`);
-            updateText('val-last-follow', name);
+            // 1. FOLLOWS
+            client.on('Twitch.Follow', (payload) => {
+                sessionFollows++;
+                const name = getName(payload);
+                updateText('val-session-follows', `+${sessionFollows}`);
+                updateText('val-last-follow', name);
 
-            // Trigger Alert if enabled
-            if (document.getElementById('alert-follow').checked) {
-                showNotification("NEW FOLLOWER", name);
-            }
-        });
+                // Trigger Alert if enabled
+                const alertEl = document.getElementById('alert-follow');
+                if (alertEl && alertEl.checked) {
+                    showNotification("NEW FOLLOWER", name);
+                }
+            });
 
-        // 2. SUBSCRIPTIONS
-        const handleSub = (payload) => {
-            const username = getName(payload);
-            const d = getSafeData(payload);
-            const tierCodeRaw = getTierFromPayload(payload);
-            const tierCode = String(tierCodeRaw).toLowerCase().replace(/\s/g, '');
-            const isPrime = d.is_prime === true || d.isPrime === true;
+            // 2. SUBSCRIPTIONS
+            const handleSub = (payload) => {
+                const username = getName(payload);
+                const d = getSafeData(payload);
+                const tierCodeRaw = getTierFromPayload(payload);
+                const tierCode = String(tierCodeRaw).toLowerCase().replace(/\s/g, '');
+                const isPrime = d.is_prime === true || d.isPrime === true;
 
-            let tierText = "Tier 1";
-            if (tierCode === '3000' || tierCode === 'tier3') tierText = "Tier 3";
-            else if (tierCode === '2000' || tierCode === 'tier2') tierText = "Tier 2";
-            else if (tierCode.includes('prime') || isPrime) tierText = "Prime";
+                let tierText = "Tier 1";
+                if (tierCode === '3000' || tierCode === 'tier3') tierText = "Tier 3";
+                else if (tierCode === '2000' || tierCode === 'tier2') tierText = "Tier 2";
+                else if (tierCode.includes('prime') || isPrime) tierText = "Prime";
 
-            updateText('val-last-sub', `${username} (${tierText})`);
+                updateText('val-last-sub', `${username} (${tierText})`);
 
-            // Trigger Alert if enabled
-            if (document.getElementById('alert-sub').checked) {
-                showNotification("NEW SUBSCRIPTION", `${username} - ${tierText}`);
-            }
-        };
+                // Trigger Alert if enabled
+                const alertEl = document.getElementById('alert-sub');
+                if (alertEl && alertEl.checked) {
+                    showNotification("NEW SUBSCRIPTION", `${username} - ${tierText}`);
+                }
+            };
 
-        client.on('Twitch.Subscribe', handleSub);
-        client.on('Twitch.ReSubscribe', handleSub);
-        client.on('Twitch.GiftSubscription', handleSub);
-        client.on('Twitch.Subscription', handleSub);
-        client.on('Twitch.GiftSub', handleSub);
-        client.on('Twitch.Sub', handleSub);
+            client.on('Twitch.Subscribe', handleSub);
+            client.on('Twitch.ReSubscribe', handleSub);
+            client.on('Twitch.GiftSubscription', handleSub);
+            client.on('Twitch.Subscription', handleSub);
+            client.on('Twitch.GiftSub', handleSub);
+            client.on('Twitch.Sub', handleSub);
 
-        // 3. CHEERS
-        client.on('Twitch.Cheer', (payload) => {
-            const username = getName(payload);
-            const d = getSafeData(payload);
-            const bits = d.bits || 1;
-            updateText('val-last-cheer', `${username} (${bits})`);
+            // 3. CHEERS
+            client.on('Twitch.Cheer', (payload) => {
+                const username = getName(payload);
+                const d = getSafeData(payload);
+                const bits = d.bits || 1;
+                updateText('val-last-cheer', `${username} (${bits})`);
 
-            // Trigger Alert if enabled
-            if (document.getElementById('alert-cheer').checked) {
-                showNotification("NEW CHEER", `${username} - ${bits} Bits`);
-            }
-        });
+                // Trigger Alert if enabled
+                const alertEl = document.getElementById('alert-cheer');
+                if (alertEl && alertEl.checked) {
+                    showNotification("NEW CHEER", `${username} - ${bits} Bits`);
+                }
+            });
 
-        // 4. RAIDS
-        client.on('Twitch.Raid', (payload) => {
-            const d = getSafeData(payload);
-            const raider = getName(payload);
-            const viewers = d.viewers || 0;
-            console.log("Raid Event Data:", payload); // Log for debugging
+            // 4. RAIDS
+            client.on('Twitch.Raid', (payload) => {
+                const d = getSafeData(payload);
+                const raider = getName(payload);
+                const viewers = d.viewers || 0;
+                console.log("Raid Event Data:", payload); // Log for debugging
 
-            // Trigger Alert if enabled
-            if (document.getElementById('alert-raid').checked) {
-                showNotification("INCOMING RAID", `${raider} - ${viewers} Viewers`);
-            }
-        });
+                // Trigger Alert if enabled
+                const alertEl = document.getElementById('alert-raid');
+                if (alertEl && alertEl.checked) {
+                    showNotification("INCOMING RAID", `${raider} - ${viewers} Viewers`);
+                }
+            });
+        }
 
         // --- MAIN INITIALIZATION ---
         window.addEventListener('load', () => {
@@ -1033,49 +1049,60 @@
         }
 
         function loadSettings() {
-            const stored = localStorage.getItem('tcoto_settings');
-            if (!stored) return;
-
             try {
+                const stored = localStorage.getItem('tcoto_settings');
+                if (!stored) return;
+
                 const settings = JSON.parse(stored);
 
-                // Load Stat Modules (Merge to preserve new modules if any)
-                if (settings.statModules) {
+                // Load Stat Modules (Validate Array)
+                if (settings.statModules && Array.isArray(settings.statModules)) {
                     statModules = settings.statModules;
                 }
 
                 // Load Scale
                 if (settings.statScale) {
-                    document.getElementById('stat-scale').value = settings.statScale;
-                    updateStatScale(settings.statScale); // Apply visuals
+                    const el = document.getElementById('stat-scale');
+                    if (el) {
+                        el.value = settings.statScale;
+                        updateStatScale(settings.statScale);
+                    }
                 }
 
                 // Load Alert Duration
                 if (settings.alertDuration) {
-                    document.getElementById('alert-duration').value = settings.alertDuration;
-                    document.getElementById('alert-duration-display').innerText = settings.alertDuration + 's';
+                    const el = document.getElementById('alert-duration');
+                    const disp = document.getElementById('alert-duration-display');
+                    if (el) el.value = settings.alertDuration;
+                    if (disp) disp.innerText = settings.alertDuration + 's';
                 }
 
                 // Load Master Toggles
                 if (settings.masterStats !== undefined) {
-                    document.getElementById('toggle-master-stats').checked = settings.masterStats;
-                    toggleMasterStats(); // Apply visuals
+                    const el = document.getElementById('toggle-master-stats');
+                    if (el) {
+                        el.checked = settings.masterStats;
+                        toggleMasterStats();
+                    }
                 }
                 if (settings.masterAlerts !== undefined) {
-                    document.getElementById('toggle-master-alerts').checked = settings.masterAlerts;
-                    toggleMasterAlerts(); // Apply visuals
+                    const el = document.getElementById('toggle-master-alerts');
+                    if (el) {
+                        el.checked = settings.masterAlerts;
+                        toggleMasterAlerts();
+                    }
                 }
 
                 // Load Alert Toggles
                 if (settings.alerts) {
-                    if (settings.alerts.follow !== undefined) document.getElementById('alert-follow').checked = settings.alerts.follow;
-                    if (settings.alerts.sub !== undefined) document.getElementById('alert-sub').checked = settings.alerts.sub;
-                    if (settings.alerts.cheer !== undefined) document.getElementById('alert-cheer').checked = settings.alerts.cheer;
-                    if (settings.alerts.raid !== undefined) document.getElementById('alert-raid').checked = settings.alerts.raid;
+                    if (settings.alerts.follow !== undefined) { const el = document.getElementById('alert-follow'); if(el) el.checked = settings.alerts.follow; }
+                    if (settings.alerts.sub !== undefined) { const el = document.getElementById('alert-sub'); if(el) el.checked = settings.alerts.sub; }
+                    if (settings.alerts.cheer !== undefined) { const el = document.getElementById('alert-cheer'); if(el) el.checked = settings.alerts.cheer; }
+                    if (settings.alerts.raid !== undefined) { const el = document.getElementById('alert-raid'); if(el) el.checked = settings.alerts.raid; }
                 }
 
             } catch (e) {
-                console.error("Failed to load settings", e);
+                console.error("Failed to load settings (Resetting to Default)", e);
             }
         }
 

@@ -17,7 +17,7 @@
             width: 1920px;
             height: 1080px;
             overflow: hidden;
-            background-color: transparent; 
+            background-color: transparent;
             font-family: 'Barlow', sans-serif;
         }
 
@@ -99,16 +99,16 @@
     <script>
         const canvas = document.getElementById('tetris');
         const context = canvas.getContext('2d');
-        
+
         // Dimensions
-        const BLOCK_SIZE = 60; 
-        const COLS = 32; 
-        const ROWS = 18; 
-        
-        const BOARD_WIDTH = COLS * BLOCK_SIZE; 
-        const BOARD_HEIGHT = ROWS * BLOCK_SIZE; 
-        const OFFSET_X = 0; 
-        const OFFSET_Y = 0; 
+        const BLOCK_SIZE = 60;
+        const COLS = 32;
+        const ROWS = 18;
+
+        const BOARD_WIDTH = COLS * BLOCK_SIZE;
+        const BOARD_HEIGHT = ROWS * BLOCK_SIZE;
+        const OFFSET_X = 0;
+        const OFFSET_Y = 0;
 
         const PIECES = {
             'I': [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]],
@@ -121,8 +121,8 @@
         };
 
         const COLORS = {
-            'I': '#00f0f0', 'J': '#0000f0', 'L': '#f0a000', 
-            'O': '#f0f000', 'S': '#00f000', 'T': '#a000f0', 
+            'I': '#00f0f0', 'J': '#0000f0', 'L': '#f0a000',
+            'O': '#f0f000', 'S': '#00f000', 'T': '#a000f0',
             'Z': '#f00000'
         };
 
@@ -131,7 +131,7 @@
         let followerQueue = [];
         let activePiece = null;
         let lastDropTime = 0;
-        let dropInterval = 1000; 
+        let dropInterval = 1000;
         let sessionFollowCount = 0;
 
         // --- 3. RENDERING ENGINE ---
@@ -139,8 +139,8 @@
         function getWrappedLines(ctx, text, maxWidth) {
             if (ctx.measureText(text).width <= maxWidth) return [text];
             let lines = [], currentLine = "";
-            const chars = text.includes(' ') ? text.split(' ') : text; 
-            
+            const chars = text.includes(' ') ? text.split(' ') : text;
+
             if (text.includes(' ')) {
                 currentLine = chars[0];
                 for(let i=1; i<chars.length; i++) {
@@ -164,7 +164,7 @@
 
             context.fillStyle = color;
             context.fillRect(drawX, drawY, BLOCK_SIZE, BLOCK_SIZE);
-            
+
             // Highlight
             context.fillStyle = 'rgba(255,255,255,0.4)';
             context.fillRect(drawX, drawY, BLOCK_SIZE, 8);
@@ -230,7 +230,7 @@
                     if (cell !== 0 && cell.isAnchor && cell.username) {
                         const centerX = OFFSET_X + (x * BLOCK_SIZE) + (BLOCK_SIZE / 2);
                         const centerY = OFFSET_Y + (y * BLOCK_SIZE) + (BLOCK_SIZE / 2);
-                        const maxW = BLOCK_SIZE - 4; 
+                        const maxW = BLOCK_SIZE - 4;
 
                         let fontSize = 16;
                         let lines = [];
@@ -239,7 +239,7 @@
                         do {
                             fontSize--;
                             context.font = "bold " + fontSize + "px 'Barlow'";
-                            lineHeight = fontSize; 
+                            lineHeight = fontSize;
                             lines = getWrappedLines(context, cell.username, maxW);
                             if ((lines.length * lineHeight) < (BLOCK_SIZE - 4)) break;
                         } while (fontSize > 10);
@@ -254,7 +254,7 @@
                 });
             });
             context.shadowColor = "transparent";
-            context.textBaseline = "alphabetic"; 
+            context.textBaseline = "alphabetic";
         }
 
         function drawActivePiece() {
@@ -298,13 +298,13 @@
                 const ty = py - 15;
 
                 context.fillStyle = "white";
-                context.font = "bold 32px 'Barlow'"; 
+                context.font = "bold 32px 'Barlow'";
                 context.textAlign = "center";
                 context.shadowColor = "black";
                 context.shadowBlur = 4;
                 context.shadowOffsetX = 2;
                 context.shadowOffsetY = 2;
-                
+
                 context.fillText(activePiece.username, cx, ty);
                 context.shadowColor = "transparent";
             }
@@ -388,7 +388,7 @@
 
             const types = 'ILJOTSZ';
             const type = types[types.length * Math.random() | 0];
-            
+
             activePiece = {
                 shape: PIECES[type],
                 type: type,
@@ -414,7 +414,7 @@
                 merge(board, activePiece);
                 activePiece = null;
                 arenaSweep();
-                spawnPiece(); 
+                spawnPiece();
             }
             lastDropTime = Date.now();
         }
@@ -477,20 +477,31 @@
 
         // --- 6. STREAMER.BOT CONNECTION ---
         const connDot = document.getElementById('connection-dot');
-        
-        const client = new StreamerbotClient({
-            host: '127.0.0.1',
-            port: 8080,
-            endpoint: '/',
-            autoReconnect: true
-        });
+
+        let client;
+        try {
+            if (typeof StreamerbotClient !== 'undefined') {
+                client = new StreamerbotClient({
+                    host: '127.0.0.1',
+                    port: 8080,
+                    endpoint: '/',
+                    autoReconnect: true
+                });
+            } else {
+                console.warn('StreamerbotClient is undefined. Offline mode active.');
+            }
+        } catch (error) {
+            console.error('Failed to initialize StreamerbotClient:', error);
+        }
+
+        if (client) {
 
         client.on('Connect', () => {
             console.log('Connected');
             connDot.style.backgroundColor = 'lime';
             client.subscribe({ "Twitch": ["Follow"], "General": ["Custom"] });
         });
-        
+
         client.on('Disconnect', () => {
             connDot.style.backgroundColor = 'red';
         });
@@ -499,7 +510,7 @@
             let name = payload.data?.user_name || payload.data?.user?.name || "Follower";
             console.log("New Follower:", name);
             followerQueue.push(name);
-            
+
             // UPDATE STATS
             sessionFollowCount++;
             document.getElementById('follower-count-display').innerText = "New Twitch followers this stream: " + sessionFollowCount;
@@ -517,14 +528,15 @@
             if (raw.includes("TetrisRight")) playerMove(1);
             if (raw.includes("TetrisRotate")) playerRotate();
             if (raw.includes("TetrisDown")) playerDrop();
-            
+
             if (raw.includes("TetrisTest")) testTetris();
         });
+        }
 
         window.testTetris = () => {
             const longName = "LongUser_" + (Math.floor(Math.random() * 900) + 100) + "_TTV";
             followerQueue.push(longName);
-            
+
             // Update stats for test
             sessionFollowCount++;
             document.getElementById('follower-count-display').innerText = "New Twitch followers this stream: " + sessionFollowCount;
