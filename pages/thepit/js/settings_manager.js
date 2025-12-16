@@ -17,12 +17,10 @@ export class SettingsManager {
      */
     openForTheme(themeInstance) {
         try {
-            console.log('SettingsManager: Opening for', themeInstance.name);
             this.currentTheme = themeInstance;
             this.titleElement.innerText = `${themeInstance.name} Settings`;
 
             let loadedSettings = this.loadFromLocalStorage(themeInstance.name);
-            console.log('SettingsManager: Loaded settings', loadedSettings);
 
             if (!themeInstance.settings || Object.keys(themeInstance.settings).length === 0) {
                 const defaults = this.extractDefaults(themeInstance.getSettingsSchema());
@@ -31,11 +29,8 @@ export class SettingsManager {
                 this.currentSettings = themeInstance.settings;
             }
 
-            console.log('SettingsManager: Current settings', this.currentSettings);
-
             // Render UI
             this.renderUI(themeInstance.getSettingsSchema(), this.currentSettings);
-            console.log('SettingsManager: UI Rendered');
 
             // Show Modal
             this.modal.style.display = 'flex';
