@@ -50,6 +50,10 @@ export class BallpitTheme {
             { type: 'header', label: 'Huge Ball Settings' },
             { id: 'huge_base_size', label: 'Huge Base Size', type: 'number', default: 100 },
             { id: 'huge_variance', label: 'Huge Size Variance', type: 'number', default: 30 },
+
+            { type: 'header', label: 'Text & Visuals' },
+            { id: 'font_family', label: 'Font Family', type: 'text', default: 'Barlow' },
+            { id: 'text_scale_mult', label: 'Text Scale Multiplier', type: 'range', default: 1.0, min: 0.5, max: 2.0, step: 0.1 },
         ];
     }
 
@@ -242,9 +246,10 @@ export class BallpitTheme {
         } else {
             const radius = customRadius;
             ball = this.createBallBody(x, y, radius, username);
+            // Only apply fading if explicitly requested (e.g. for specific bomb debris)
             if (isFading) {
-                ball.isSettledFading = true;
-                ball.flashTimer = performance.now() + (Math.random() * 8000);
+                ball.isFading = true; // Use active fading initially if requested
+                ball.flashTimer = performance.now();
             }
         }
 
@@ -356,23 +361,54 @@ export class BallpitTheme {
         const bodies = this.engine.Composite.allBodies(this.engine.engine.world);
         context.textAlign = 'center'; context.textBaseline = 'middle';
 
+        const fontFamily = this.getSetting('font_family', 'Barlow');
+        const textScaleMult = this.getSetting('text_scale_mult', 1.0);
+
         bodies.forEach(body => {
             if (body.username) {
                 // Fading Logic for rendering colors
+                // Only apply if body.isFading or body.isSettledFading is TRUE.
+                // Normal balls do not have these flags set anymore.
                 if (body.isFading || body.isSettledFading) {
                     const time = performance.now();
                     const cycleTime = body.isSettledFading ? 8000 : 6000;
                     const opacity = 0.5 + 0.5 * Math.sin((time - (body.flashTimer || 0)) * (2 * Math.PI / cycleTime));
-                    // Note: This relies on re-setting render.fillStyle every frame which is okay but heavy-ish.
-                    // Keeping simple port.
-                    // Actually, let's skip complex RGB parsing for now and just set global alpha if needed,
-                    // or assume colors are hex/rgb strings we can slice.
+                    // Simple approach: parse current fillStyle or just overlay.
+                    // Since fillStyle is usually a static color string here, we can assume it's set.
+                    // For now, we will just trust the user accepts the base color logic,
+                    // or ideally we would parse the RGB and apply the alpha.
+                    // Re-implementing basic RGB parse for the pulsing effect:
+                    if (body.render.fillStyle.startsWith('rgb')) {
+                        // Very rough parse to apply opacity
+                        const color = body.render.fillStyle;
+                        const rgb = color.match(/\d+/g);
+                        if (rgb && rgb.length >= 3) {
+                            body.render.fillStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${opacity})`;
+                        }
+                    }
                 }
 
-                // Text Rendering
+                // Text Rendering with Dynamic Fit
                 const radius = body.circleRadius || 20;
-                let fontSize = radius * 0.7;
-                context.font = `600 ${fontSize}px "Barlow", Arial, sans-serif`;
+                const availableWidth = radius * 1.8; // Roughly fit inside circle
+
+                // Base size calculation
+                let fontSize = radius * 0.7 * textScaleMult;
+
+                // Dynamic Fitting
+                context.font = `600 ${fontSize}px "${fontFamily}", Arial, sans-serif`;
+                let textWidth = context.measureText(body.username).width;
+
+                if (textWidth > availableWidth) {
+                    // Scale down
+                    const ratio = availableWidth / textWidth;
+                    fontSize = fontSize * ratio;
+                }
+
+                // Clamp minimum size to prevent invisible text
+                fontSize = Math.max(8, fontSize);
+
+                context.font = `600 ${fontSize}px "${fontFamily}", Arial, sans-serif`;
                 context.lineWidth = Math.max(2.5, fontSize * 0.08);
                 context.strokeStyle = `rgba(0, 0, 0, 1.0)`;
                 context.strokeText(body.username, body.position.x, body.position.y);
@@ -381,8 +417,8 @@ export class BallpitTheme {
 
                 // Labels (Top/Bottom)
                 if (body.bottomLabel) {
-                     const subSize = Math.max(10, radius * 0.25);
-                     context.font = `600 ${subSize}px "Barlow", Arial, sans-serif`;
+                     const subSize = Math.max(8, radius * 0.25 * textScaleMult);
+                     context.font = `600 ${subSize}px "${fontFamily}", Arial, sans-serif`;
                      context.fillText(body.bottomLabel, body.position.x, body.position.y + (radius * 0.4));
                 }
             }
