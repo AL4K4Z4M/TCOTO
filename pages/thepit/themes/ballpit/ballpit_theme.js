@@ -4,18 +4,42 @@ export class BallpitTheme {
         this.name = "Ballpit";
         this.colors = ['rgb(255, 0, 0)', 'rgb(255, 234, 0)', 'rgb(5, 255, 116)', 'rgb(95, 255, 255)'];
 
+        // Initialize settings (will be populated by SettingsManager)
+        this.settings = {};
+
         // Bind functions
         this.renderHook = this.renderHook.bind(this);
         this.updateHook = this.updateHook.bind(this);
         this.collisionHook = this.collisionHook.bind(this);
     }
 
+    getSettingsSchema() {
+        return [
+            { type: 'header', label: 'Global Settings' },
+            { id: 'global_scale_mult', label: 'Ball Size Multiplier (Global)', type: 'range', default: 1.0, min: 0.5, max: 2.5, step: 0.1 },
+
+            { type: 'header', label: 'Follow Events' },
+            { id: 'follow_enabled', label: 'Enable Follow Drops', type: 'checkbox', default: true },
+            { id: 'follow_min_size', label: 'Min Size', type: 'number', default: 15 },
+            { id: 'follow_max_size', label: 'Max Size', type: 'number', default: 85 },
+
+            { type: 'header', label: 'Subscription Events' },
+            { id: 'sub_enabled', label: 'Enable Sub Drops', type: 'checkbox', default: true },
+            { id: 'sub_prime_size', label: 'Prime/Tier 1 Size', type: 'number', default: 50 },
+            { id: 'sub_t2_size', label: 'Tier 2 Size', type: 'number', default: 75 },
+            { id: 'sub_t3_size', label: 'Tier 3 Size', type: 'number', default: 100 },
+
+            { type: 'header', label: 'Cheer (Bits) Events' },
+            { id: 'bits_enabled', label: 'Enable Bit Drops', type: 'checkbox', default: true },
+            { id: 'bits_cluster_threshold', label: 'Cluster Threshold (Bits)', type: 'number', default: 100 },
+            { id: 'bits_explosion_threshold', label: 'Explosion Threshold (Bits)', type: 'number', default: 1000 },
+            { id: 'bits_mega_threshold', label: 'Mega Explosion Threshold (Bits)', type: 'number', default: 10000 },
+        ];
+    }
+
     async load() {
         // Load Audio
-        // For now we assume standard browser audio or shared assets.
-        // If we need to preload specific assets, do it here.
         this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        // Resume on click logic is global in main, but good to have reference
     }
 
     init() {
@@ -23,8 +47,6 @@ export class BallpitTheme {
         this.engine.Events.on(this.engine.render, 'afterRender', this.renderHook);
         this.engine.Events.on(this.engine.engine, 'afterUpdate', this.updateHook);
         this.engine.Events.on(this.engine.engine, 'collisionStart', this.collisionHook);
-
-        // Reset/Setup Walls if needed (Ballpit uses standard walls)
     }
 
     unload() {
@@ -32,6 +54,11 @@ export class BallpitTheme {
         this.engine.Events.off(this.engine.render, 'afterRender', this.renderHook);
         this.engine.Events.off(this.engine.engine, 'afterUpdate', this.updateHook);
         this.engine.Events.off(this.engine.engine, 'collisionStart', this.collisionHook);
+    }
+
+    // Helper to safely get setting or default
+    getSetting(key, defaultVal) {
+        return this.settings[key] !== undefined ? this.settings[key] : defaultVal;
     }
 
     handleEvent(event, payload) {
@@ -48,55 +75,82 @@ export class BallpitTheme {
             return "User";
         };
 
+        const globalMult = this.getSetting('global_scale_mult', 1.0);
+
         if (event === 'Twitch.Follow') {
+            if (!this.getSetting('follow_enabled', true)) return;
+
             const username = getName(payload);
             const dropType = this.determineDropType();
-            const radius = 15 + Math.random() * 70;
-            this.spawnEvent(dropType, username, radius);
+
+            const min = this.getSetting('follow_min_size', 15);
+            const max = this.getSetting('follow_max_size', 85);
+            const rawRadius = min + Math.random() * (max - min);
+
+            this.spawnEvent(dropType, username, rawRadius * globalMult);
         }
         else if (event === 'Twitch.Subscribe' || event === 'Twitch.ReSubscribe' || event === 'Twitch.GiftSubscription' || event === 'Twitch.Sub') {
+            if (!this.getSetting('sub_enabled', true)) return;
+
             const username = getName(payload);
             const d = getSafeData(payload);
             const tierCodeRaw = d.tier || d.sub_tier || '1000';
             const tierCode = String(tierCodeRaw).toLowerCase().replace(/\s/g, '');
             const isPrime = d.is_prime === true || d.isPrime === true;
 
-            let baseRadius = 50;
+            let baseRadius = this.getSetting('sub_prime_size', 50);
             let tierText = "Tier 1";
 
-            if (tierCode === '3000') { baseRadius = 100; tierText = "Tier 3"; }
-            else if (tierCode === '2000') { baseRadius = 75; tierText = "Tier 2"; }
-            else if (tierCode.includes('prime') || isPrime) { baseRadius = 50; tierText = "Prime"; }
+            if (tierCode === '3000') {
+                baseRadius = this.getSetting('sub_t3_size', 100);
+                tierText = "Tier 3";
+            }
+            else if (tierCode === '2000') {
+                baseRadius = this.getSetting('sub_t2_size', 75);
+                tierText = "Tier 2";
+            }
+            else if (tierCode.includes('prime') || isPrime) {
+                baseRadius = this.getSetting('sub_prime_size', 50);
+                tierText = "Prime";
+            }
 
-            this.spawnEvent('normal', username, baseRadius, 0, false, "SUB", tierText);
+            this.spawnEvent('normal', username, baseRadius * globalMult, 0, false, "SUB", tierText);
         }
         else if (event === 'Twitch.Cheer') {
+            if (!this.getSetting('bits_enabled', true)) return;
+
             const username = getName(payload);
             const d = getSafeData(payload);
             const bits = d.bits || 1;
             const bitLabel = bits + " bits";
 
-            if (bits >= 1000) this.playDing();
+            // Thresholds
+            const megaThresh = this.getSetting('bits_mega_threshold', 10000);
+            const exploThresh = this.getSetting('bits_explosion_threshold', 1000);
+            const clusterThresh = this.getSetting('bits_cluster_threshold', 100);
+
+            if (bits >= exploThresh) this.playDing();
 
             let baseRadius = 15 + Math.sqrt(bits) * 2.5;
             baseRadius = Math.min(baseRadius, 200);
 
-            if (bits >= 10000) {
-                this.spawnEvent('exploding', username, 200, 1, false, "", bitLabel);
-            } else if (bits >= 1000) {
-                const progress = (bits - 1000) / (9999 - 1000);
+            if (bits >= megaThresh) {
+                this.spawnEvent('exploding', username, 200 * globalMult, 1, false, "", bitLabel);
+            } else if (bits >= exploThresh) {
+                // Calculate scale based on range between explosion and mega thresholds
+                const progress = (bits - exploThresh) / (megaThresh - exploThresh);
                 const clamped = Math.max(0, Math.min(1, progress));
                 const debrisCount = 11 + Math.floor(clamped * 9);
                 const debrisRadius = 15 + Math.sqrt(99) * 2.5;
-                this.spawnEvent('exploding', username, baseRadius, 0, false, "", bitLabel, debrisCount, debrisRadius);
-            } else if (bits >= 100) {
+                this.spawnEvent('exploding', username, baseRadius * globalMult, 0, false, "", bitLabel, debrisCount, debrisRadius * globalMult);
+            } else if (bits >= clusterThresh) {
                 const numBalls = 1 + Math.floor(bits / 100);
                 const clusterRadius = 15 + Math.sqrt(99) * 2.5;
                 for(let i=0; i < numBalls; i++) {
-                    setTimeout(() => this.spawnEvent('normal', username, clusterRadius + Math.random() * 5, 0, false, "", (i===0?bitLabel:"")), i * 30);
+                    setTimeout(() => this.spawnEvent('normal', username, (clusterRadius + Math.random() * 5) * globalMult, 0, false, "", (i===0?bitLabel:"")), i * 30);
                 }
             } else {
-                this.spawnEvent('normal', username, baseRadius, 0, false, "", bitLabel);
+                this.spawnEvent('normal', username, baseRadius * globalMult, 0, false, "", bitLabel);
             }
         }
         else if (event === 'Twitch.ChatMessage') {
@@ -107,9 +161,8 @@ export class BallpitTheme {
              if (msg === "!ball") {
                  const dropType = this.determineDropType();
                  const radius = 15 + Math.random() * 70;
-                 this.spawnEvent(dropType, username, radius, 0, false, "", "!ball");
+                 this.spawnEvent(dropType, username, radius * globalMult, 0, false, "", "!ball");
              }
-             // !flushpit handled globally or by main
         }
     }
 
