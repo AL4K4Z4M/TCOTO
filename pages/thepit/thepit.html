@@ -8,6 +8,11 @@
     <!-- Global CSS -->
     <link rel="stylesheet" href="../shared/css/common.css">
 
+    <!-- Fonts: Poppins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
     <!-- Tailwind CSS (CDN for UI) -->
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -18,21 +23,110 @@
     <script src="https://cdn.jsdelivr.net/npm/@streamerbot/client/dist/streamerbot-client.js"></script>
 
     <style>
-        /* Side Menu Transition */
-        #settings-panel {
-            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-            transform: translateX(100%);
-        }
-        #settings-panel.open {
-            transform: translateX(0);
+        body {
+            font-family: 'Poppins', sans-serif;
+            overflow: hidden;
         }
 
-        /* Glass effect for menu */
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(12px);
-            border-left: 1px solid rgba(255, 255, 255, 0.5);
+        /* --- THE SIDEBAR MENU (RIGHT SIDE) --- */
+        #coto-sidebar-container {
+            position: absolute;
+            top: 0;
+            right: 0; /* Aligned to Right */
+            height: 100%;
+            width: 300px;
+            pointer-events: auto;
+            z-index: 9999;
+            transform: translateX(100%); /* Hidden to Right */
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: flex;
         }
+
+        /* Invisible Hitbox Trigger */
+        #sidebar-trigger-tab {
+            position: absolute;
+            top: 0;
+            left: -40px; /* Sticks out to the Left of the container */
+            width: 40px;
+            height: 100%;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+        }
+
+        #coto-sidebar-container:hover {
+            transform: translateX(0); /* Slides in */
+        }
+
+        #coto-sidebar-container:hover #sidebar-content {
+            box-shadow: -10px 0 40px rgba(0,0,0,0.2);
+        }
+
+        #sidebar-content {
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            border-left: 4px solid transparent; /* Border on Left side */
+            border-image: linear-gradient(to bottom, #D00000, #FF5600, #FFEA00, #05FF74, #0093ED, #5FFFFF) 1;
+            backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
+            padding: 40px 20px;
+            transition: box-shadow 0.3s ease;
+        }
+
+        /* Branding Text */
+        .tcoto-brand {
+            background: linear-gradient(to right, #D00000, #FF5600, #FFEA00, #05FF74, #0093ED);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 2px 0px rgba(0,0,0,0.1));
+        }
+
+        /* App Items (Buttons) */
+        .app-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 16px;
+            margin-bottom: 10px;
+            border-radius: 12px;
+            background: white;
+            border: 1px solid rgba(0,0,0,0.05);
+            border-left: 4px solid #94a3b8;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .app-item:hover {
+            background: linear-gradient(90deg, #f0fdf4, white);
+            border-left-color: #05FF74;
+            color: #0f172a;
+            padding-left: 20px;
+            box-shadow: 0 5px 15px rgba(5, 255, 116, 0.2);
+        }
+
+        .app-item.active {
+            background: linear-gradient(90deg, #ecfeff, white);
+            border-left-color: #0093ED;
+            color: #0093ED;
+            border-top: 1px solid #cffafe;
+        }
+
+        /* System/Action Button Style */
+        .app-item.system-btn {
+            border-left-color: #D00000;
+        }
+        .app-item.system-btn:hover {
+            background: linear-gradient(90deg, #fef2f2, white);
+            border-left-color: #FF5600;
+        }
+
+        .app-icon-visual { font-size: 22px; width: 32px; text-align: center; }
+        .app-label { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+
     </style>
 </head>
 <body>
@@ -40,52 +134,44 @@
     <!-- PHYSICS CONTAINER -->
     <div id="physics-container"></div>
 
-    <!-- UI: SETTINGS BUTTON -->
-    <button onclick="toggleMenu()" class="fixed top-4 right-4 z-50 p-2 bg-white/50 hover:bg-white rounded-full shadow-lg transition group">
-        <span class="text-xl group-hover:rotate-90 transition-transform block">⚙️</span>
-    </button>
+    <!-- UI: RIGHT SIDEBAR DRAWER -->
+    <div id="coto-sidebar-container">
+        <div id="sidebar-trigger-tab"></div>
 
-    <!-- UI: SLIDE-OUT MENU -->
-    <div id="settings-panel" class="fixed top-0 right-0 h-full w-80 glass-panel shadow-2xl z-[60] p-6 flex flex-col">
-        <div class="flex justify-between items-center mb-8 border-b border-slate-300 pb-4">
-            <h2 class="text-2xl font-black text-slate-800 uppercase italic">The Pit</h2>
-            <button onclick="toggleMenu()" class="text-slate-400 hover:text-red-500 font-bold">CLOSE</button>
-        </div>
-
-        <div class="space-y-6 flex-grow">
-            <!-- Theme Selector -->
-            <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Select Theme</label>
-                <div class="space-y-2">
-                    <button onclick="switchTheme('ballpit')" class="w-full text-left px-4 py-3 rounded-xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-md transition flex items-center gap-3 group">
-                        <span class="text-2xl">🎱</span>
-                        <div>
-                            <div class="font-bold text-slate-700 group-hover:text-blue-600">Ballpit</div>
-                            <div class="text-[10px] text-slate-400">Classic chaos</div>
-                        </div>
-                    </button>
-
-                    <button onclick="switchTheme('ducks')" class="w-full text-left px-4 py-3 rounded-xl bg-white border border-slate-200 hover:border-yellow-400 hover:shadow-md transition flex items-center gap-3 group">
-                        <span class="text-2xl">🦆</span>
-                        <div>
-                            <div class="font-bold text-slate-700 group-hover:text-yellow-600">Ducks & Toasters</div>
-                            <div class="text-[10px] text-slate-400">Bath time fun</div>
-                        </div>
-                    </button>
-                </div>
+        <div id="sidebar-content">
+            <!-- Branding -->
+            <div class="mb-6 pl-2 border-b border-slate-300 pb-4">
+                <h1 class="text-4xl font-black tcoto-brand uppercase italic tracking-tighter">
+                    THE PIT
+                </h1>
             </div>
+
+            <!-- Theme Buttons -->
+            <div id="theme-btn-ballpit" class="app-item active" onclick="selectTheme('ballpit', this)">
+                <div class="app-icon-visual">🎱</div>
+                <span class="app-label">Ballpit</span>
+            </div>
+
+            <div id="theme-btn-ducks" class="app-item" onclick="selectTheme('ducks', this)">
+                <div class="app-icon-visual">🦆</div>
+                <span class="app-label">Ducks & Toasters</span>
+            </div>
+
+            <!-- Spacer -->
+            <div class="flex-grow"></div>
 
             <!-- Actions -->
-            <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Actions</label>
-                <button onclick="engine.flushPit()" class="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded border border-red-200 transition">
-                    FLUSH PIT
-                </button>
+            <div class="app-item system-btn" onclick="engine.flushPit()">
+                <div class="app-icon-visual" style="color: #FF5600;">🚽</div>
+                <span class="app-label">Flush Pit</span>
             </div>
-        </div>
 
-        <div class="text-center text-[10px] text-slate-400">
-            Powered by Streamer.bot
+            <!-- Sidebar Footer Credit -->
+            <div class="mt-4 text-center">
+                <a href="https://www.twitch.tv/thechildoftoledo" target="_blank" class="text-[9px] text-slate-400 hover:text-blue-500 uppercase font-bold tracking-widest transition">
+                    TheChildofToledo
+                </a>
+            </div>
         </div>
     </div>
 
@@ -115,10 +201,19 @@
             themeManager.switchTheme(name);
         };
 
-        // 4. Load Default Theme
-        // Open menu by default
-        document.getElementById('settings-panel').classList.add('open');
+        // UI Helper for Active State
+        window.selectTheme = (name, el) => {
+            // Update UI
+            document.querySelectorAll('.app-item').forEach(item => {
+                if(!item.classList.contains('system-btn')) item.classList.remove('active');
+            });
+            if(el) el.classList.add('active');
 
+            // Switch Logic
+            themeManager.switchTheme(name);
+        };
+
+        // 4. Load Default Theme
         // Start with Ballpit
         themeManager.switchTheme('ballpit');
 
@@ -155,12 +250,6 @@
                 themeManager.handleEvent('Twitch.ChatMessage', d);
             }
         });
-
-        // UI Toggle
-        window.toggleMenu = () => {
-            const el = document.getElementById('settings-panel');
-            el.classList.toggle('open');
-        };
 
     </script>
 </body>
