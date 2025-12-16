@@ -127,6 +127,12 @@
         .app-icon-visual { font-size: 22px; width: 32px; text-align: center; }
         .app-label { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
 
+        /* SETTINGS MODAL */
+        #settings-modal {
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+
     </style>
 </head>
 <body>
@@ -175,10 +181,41 @@
         </div>
     </div>
 
+    <!-- SETTINGS MODAL -->
+    <div id="settings-modal" class="fixed inset-0 z-[10000] hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
+            <!-- Header -->
+            <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-xl">
+                <h2 id="settings-title" class="text-xl font-bold text-gray-800">Settings</h2>
+                <button id="close-settings-btn" class="text-gray-400 hover:text-red-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <!-- Body (Scrollable) -->
+            <div id="settings-content" class="p-6 overflow-y-auto flex-grow">
+                <!-- Dynamic Content Injected Here -->
+            </div>
+
+            <!-- Footer -->
+            <div class="p-4 border-t border-gray-100 bg-gray-50 rounded-b-xl flex flex-col gap-3">
+                <div class="flex justify-between gap-2">
+                     <button id="import-btn" class="text-xs px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded flex-1">Load Config</button>
+                     <button id="export-btn" class="text-xs px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded flex-1">Save Config</button>
+                     <input type="file" id="file-input" class="hidden" accept=".json">
+                </div>
+                <button id="run-theme-btn" class="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 text-white font-bold rounded shadow-lg transform active:scale-95 transition">
+                    APPLY & RUN
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- MAIN LOGIC -->
     <script type="module">
         import { PhysicsEngine } from './js/engine.js';
         import { ThemeManager } from './js/theme_manager.js';
+        import { SettingsManager } from './js/settings_manager.js';
         import { BallpitTheme } from './themes/ballpit/ballpit_theme.js';
         import { DucksTheme } from './themes/ducks/ducks_theme.js';
 
@@ -196,28 +233,72 @@
         themeManager.registerTheme('ballpit', ballpit);
         themeManager.registerTheme('ducks', ducks);
 
-        // 3. Expose Theme Switcher to Global Scope (for HTML onclick)
-        window.switchTheme = (name) => {
-            themeManager.switchTheme(name);
-        };
+        // 3. Setup Settings Manager
+        const settingsManager = new SettingsManager('settings-modal', 'settings-content', 'settings-title');
 
-        // UI Helper for Active State
-        window.selectTheme = (name, el) => {
-            // Update UI
+        // Close Button
+        document.getElementById('close-settings-btn').addEventListener('click', () => {
+            settingsManager.close();
+        });
+
+        // Run Button
+        document.getElementById('run-theme-btn').addEventListener('click', () => {
+            const settings = settingsManager.apply();
+            const themeName = settingsManager.currentTheme.name;
+            const themeKey = themeName === 'Ballpit' ? 'ballpit' : 'ducks'; // Simple mapping
+
+            // Switch Theme
+            themeManager.switchTheme(themeKey);
+            settingsManager.close();
+
+            // Update Active Class visually
             document.querySelectorAll('.app-item').forEach(item => {
                 if(!item.classList.contains('system-btn')) item.classList.remove('active');
             });
-            if(el) el.classList.add('active');
+            const btnId = themeKey === 'ballpit' ? 'theme-btn-ballpit' : 'theme-btn-ducks';
+            const btn = document.getElementById(btnId);
+            if (btn) btn.classList.add('active');
+        });
 
-            // Switch Logic
-            themeManager.switchTheme(name);
+        // File I/O
+        document.getElementById('export-btn').addEventListener('click', () => settingsManager.exportToFile());
+        document.getElementById('import-btn').addEventListener('click', () => document.getElementById('file-input').click());
+        document.getElementById('file-input').addEventListener('change', (e) => settingsManager.importFromFile(e.target.files[0]));
+
+
+        // 4. Update UI Interaction
+        window.selectTheme = (key, el) => {
+            // Instead of switching immediately, open settings
+            let themeInstance;
+            if (key === 'ballpit') themeInstance = ballpit;
+            else if (key === 'ducks') themeInstance = ducks;
+
+            if (themeInstance && typeof themeInstance.getSettingsSchema === 'function') {
+                settingsManager.openForTheme(themeInstance);
+            } else {
+                // Fallback for themes without settings
+                themeManager.switchTheme(key);
+
+                // Update UI manually since we skipped the 'Run' handler
+                document.querySelectorAll('.app-item').forEach(item => {
+                    if(!item.classList.contains('system-btn')) item.classList.remove('active');
+                });
+                if(el) el.classList.add('active');
+            }
         };
 
-        // 4. Load Default Theme
-        // Start with Ballpit
+        // 5. Initial Load
+        // Start with Ballpit defaults (without opening modal)
+        // We need to load settings first implicitly?
+        // Let's just switch. The theme will use defaults if settings aren't populated.
+        // Or we can pre-populate settings from localstorage.
+        const savedBallpit = settingsManager.loadFromLocalStorage('Ballpit');
+        if (savedBallpit) ballpit.settings = savedBallpit;
+
         themeManager.switchTheme('ballpit');
 
-        // 5. Setup Streamer.bot
+
+        // 6. Setup Streamer.bot
         const client = new StreamerbotClient({
             host: '127.0.0.1',
             port: 8080,
@@ -242,7 +323,6 @@
         client.on('Twitch.Sub', (d) => themeManager.handleEvent('Twitch.Sub', d));
         client.on('Twitch.Cheer', (d) => themeManager.handleEvent('Twitch.Cheer', d));
         client.on('Twitch.ChatMessage', (d) => {
-            // Global Flush Check
             const msg = (d.data?.message?.message || d.data?.message || "").trim().toLowerCase();
             if (msg === "!flushpit") {
                 engine.flushPit();
