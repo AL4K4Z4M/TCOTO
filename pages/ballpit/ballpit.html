@@ -413,7 +413,15 @@
                         host: '127.0.0.1',
                         port: 8080,
                         endpoint: '/',
-                        autoReconnect: true
+                        autoReconnect: true,
+                        onData: (data) => {
+                            if (data.eventName === 'SpawnBall') {
+                                // Match logic from General.Custom handler
+                                const dropType = determineDropType();
+                                const radius = 15 + Math.random() * 70;
+                                spawnEvent(dropType, "Streamer", radius);
+                            }
+                        }
                     });
 
                     client.on('Connect', () => {

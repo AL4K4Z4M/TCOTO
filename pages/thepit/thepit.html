@@ -303,7 +303,13 @@
             host: '127.0.0.1',
             port: 8080,
             endpoint: '/',
-            autoReconnect: true
+            autoReconnect: true,
+            onData: (data) => {
+                // Fallback for raw JSON broadcasts
+                if (data.eventName === 'SpawnBall') {
+                    themeManager.handleEvent('General.Custom', { data: { eventName: 'SpawnBall', username: 'Streamer' } });
+                }
+            }
         });
 
         client.on('Connect', () => {
