@@ -14,7 +14,7 @@
 * **Use `General.Custom`:** The correct way to handle internal signals (from Stream Deck/C#) is listening to `client.on('General.Custom', ...)` and checking `payload.eventName` (or parsing the raw string if using `BroadcastString`).
 
 * **C# Actions:** The preferred method to trigger overlay events from Streamer.bot is:
-  `CPH.WebsocketBroadcastJson("{\"event\":{\"source\":\"General\",\"type\":\"Custom\"},\"data\":{\"eventName\":\"MyEventName\"}}");`
+  CPH.WebsocketBroadcastJson("{\"event\":{\"source\":\"General\",\"type\":\"Custom\"},\"data\":{\"eventName\":\"MyEventName\"}}");
 
 ### 2. Physics Engine (Matter.js) Stability
 
@@ -31,6 +31,7 @@
 
 * **Resolution:** Always design for **1920x1080** but keep in mind scaling for different aspect ratios and resolutions
 * **Fonts:** Use **"Barlow"** (SemiBold/Bold) for all UI. Fallback to Arial.
+* **UI Style:** JoyUI
 * **Colors:**
   * Red: `#ff0000`
   * Yellow: `#ffea00`
@@ -49,8 +50,9 @@
 **Focus:** Streamer.bot C#, WebSocket payloads, JSON parsing.
 **Directives:**
 * Ensure data types match (Strings vs Integers).
-* Handle "Twitch.Cheer" tier logic (1-99, 100-999, 1000+, 10000+).
-* Handle "Twitch.Subscribe" tier logic (Prime, 1000, 2000, 3000).
+* Handle "Twitch.Follow" logic
+* Handle "Twitch.Cheer" logic
+* Handle "Twitch.Subscribe" logic
 * Debug connection issues using the `debug-log` div (if active).
 
 ### 🟣 The Designer
