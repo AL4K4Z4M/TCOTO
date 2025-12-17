@@ -18,22 +18,42 @@ export class BallpitTheme {
             { type: 'header', label: 'Global Settings' },
             { id: 'global_scale_mult', label: 'Ball Size Multiplier (Global)', type: 'range', default: 1.0, min: 0.5, max: 2.5, step: 0.1 },
 
-            { type: 'header', label: 'Follow Events' },
+            { type: 'header', label: 'Follow Events & Drop Chances' },
             { id: 'follow_enabled', label: 'Enable Follow Drops', type: 'checkbox', default: true },
             { id: 'follow_min_size', label: 'Min Size', type: 'number', default: 15 },
             { id: 'follow_max_size', label: 'Max Size', type: 'number', default: 85 },
+            { id: 'prob_huge', label: 'Huge Ball Chance %', type: 'range', default: 1.5, min: 0, max: 100, step: 0.1 },
+            { id: 'prob_cluster', label: 'Cluster Chance %', type: 'range', default: 5.0, min: 0, max: 100, step: 0.1 },
+            { id: 'prob_exploding', label: 'Exploding Ball Chance %', type: 'range', default: 8.5, min: 0, max: 100, step: 0.1 },
 
             { type: 'header', label: 'Subscription Events' },
             { id: 'sub_enabled', label: 'Enable Sub Drops', type: 'checkbox', default: true },
             { id: 'sub_prime_size', label: 'Prime/Tier 1 Size', type: 'number', default: 50 },
+            { id: 'sub_prime_count', label: 'Prime/Tier 1 Count', type: 'number', default: 1 },
             { id: 'sub_t2_size', label: 'Tier 2 Size', type: 'number', default: 75 },
+            { id: 'sub_t2_count', label: 'Tier 2 Count', type: 'number', default: 1 },
             { id: 'sub_t3_size', label: 'Tier 3 Size', type: 'number', default: 100 },
+            { id: 'sub_t3_count', label: 'Tier 3 Count', type: 'number', default: 1 },
 
             { type: 'header', label: 'Cheer (Bits) Events' },
             { id: 'bits_enabled', label: 'Enable Bit Drops', type: 'checkbox', default: true },
+            { id: 'bits_per_ball', label: 'Bits Per Cluster Ball', type: 'number', default: 100 },
             { id: 'bits_cluster_threshold', label: 'Cluster Threshold (Bits)', type: 'number', default: 100 },
             { id: 'bits_explosion_threshold', label: 'Explosion Threshold (Bits)', type: 'number', default: 1000 },
             { id: 'bits_mega_threshold', label: 'Mega Explosion Threshold (Bits)', type: 'number', default: 10000 },
+
+            { type: 'header', label: 'Cluster Drop Settings' },
+            { id: 'cluster_count', label: 'Cluster Ball Count', type: 'number', default: 10 },
+            { id: 'cluster_min_size', label: 'Cluster Min Size', type: 'number', default: 15 },
+            { id: 'cluster_max_size', label: 'Cluster Max Size', type: 'number', default: 45 },
+
+            { type: 'header', label: 'Huge Ball Settings' },
+            { id: 'huge_base_size', label: 'Huge Base Size', type: 'number', default: 100 },
+            { id: 'huge_variance', label: 'Huge Size Variance', type: 'number', default: 30 },
+
+            { type: 'header', label: 'Text & Visuals' },
+            { id: 'font_family', label: 'Font Family', type: 'text', default: 'Barlow' },
+            { id: 'text_scale_mult', label: 'Text Scale Multiplier', type: 'range', default: 1.0, min: 0.5, max: 2.0, step: 0.1 },
         ];
     }
 
@@ -99,22 +119,32 @@ export class BallpitTheme {
             const isPrime = d.is_prime === true || d.isPrime === true;
 
             let baseRadius = this.getSetting('sub_prime_size', 50);
+            let dropCount = this.getSetting('sub_prime_count', 1);
             let tierText = "Tier 1";
 
             if (tierCode === '3000') {
                 baseRadius = this.getSetting('sub_t3_size', 100);
+                dropCount = this.getSetting('sub_t3_count', 1);
                 tierText = "Tier 3";
             }
             else if (tierCode === '2000') {
                 baseRadius = this.getSetting('sub_t2_size', 75);
+                dropCount = this.getSetting('sub_t2_count', 1);
                 tierText = "Tier 2";
             }
             else if (tierCode.includes('prime') || isPrime) {
                 baseRadius = this.getSetting('sub_prime_size', 50);
+                dropCount = this.getSetting('sub_prime_count', 1);
                 tierText = "Prime";
             }
 
-            this.spawnEvent('normal', username, baseRadius * globalMult, 0, false, "SUB", tierText);
+            for (let i = 0; i < dropCount; i++) {
+                // Delay subsequent drops slightly if needed, or drop all at once
+                // Adding slight delay to prevent physics clamping if they spawn exact same spot/time
+                setTimeout(() => {
+                    this.spawnEvent('normal', username, baseRadius * globalMult, 0, false, "SUB", tierText);
+                }, i * 100);
+            }
         }
         else if (event === 'Twitch.Cheer') {
             if (!this.getSetting('bits_enabled', true)) return;
@@ -128,6 +158,7 @@ export class BallpitTheme {
             const megaThresh = this.getSetting('bits_mega_threshold', 10000);
             const exploThresh = this.getSetting('bits_explosion_threshold', 1000);
             const clusterThresh = this.getSetting('bits_cluster_threshold', 100);
+            const bitsPerBall = this.getSetting('bits_per_ball', 100);
 
             if (bits >= exploThresh) this.playDing();
 
@@ -144,7 +175,7 @@ export class BallpitTheme {
                 const debrisRadius = 15 + Math.sqrt(99) * 2.5;
                 this.spawnEvent('exploding', username, baseRadius * globalMult, 0, false, "", bitLabel, debrisCount, debrisRadius * globalMult);
             } else if (bits >= clusterThresh) {
-                const numBalls = 1 + Math.floor(bits / 100);
+                const numBalls = 1 + Math.floor(bits / bitsPerBall);
                 const clusterRadius = 15 + Math.sqrt(99) * 2.5;
                 for(let i=0; i < numBalls; i++) {
                     setTimeout(() => this.spawnEvent('normal', username, (clusterRadius + Math.random() * 5) * globalMult, 0, false, "", (i===0?bitLabel:"")), i * 30);
@@ -167,10 +198,15 @@ export class BallpitTheme {
     }
 
     determineDropType() {
-        const rand = Math.random();
-        if (rand < 0.015) return 'huge';
-        if (rand < 0.065) return 'cluster';
-        if (rand < 0.15) return 'exploding';
+        const rand = Math.random() * 100; // 0 to 100
+        const hugeP = this.getSetting('prob_huge', 1.5);
+        const clusterP = this.getSetting('prob_cluster', 5.0);
+        const exploP = this.getSetting('prob_exploding', 8.5);
+
+        // Cumulative probability check
+        if (rand < hugeP) return 'huge';
+        if (rand < (hugeP + clusterP)) return 'cluster';
+        if (rand < (hugeP + clusterP + exploP)) return 'exploding';
         return 'normal';
     }
 
@@ -183,12 +219,20 @@ export class BallpitTheme {
         const Composite = this.engine.Composite;
 
         if (type === 'huge') {
-            const radius = (customRadius > 60 ? customRadius : 100) + Math.random() * 30;
+            const base = this.getSetting('huge_base_size', 100);
+            const variance = this.getSetting('huge_variance', 30);
+            // Ignore customRadius if it was default/small, but respect it if passed explicitly large
+            // Logic: if customRadius is significantly larger than default, use it, else use settings
+            const radius = (customRadius > 60 ? customRadius : base) + Math.random() * variance;
             ball = this.createBallBody(x, y, radius, username);
         } else if (type === 'cluster') {
-            for(let i=0; i<10; i++) setTimeout(() => {
+            const count = this.getSetting('cluster_count', 10);
+            const minSize = this.getSetting('cluster_min_size', 15);
+            const maxSize = this.getSetting('cluster_max_size', 45); // Originally 15+30=45
+
+            for(let i=0; i<count; i++) setTimeout(() => {
                 const rainX = Math.random() * window.innerWidth;
-                let r = 15 + Math.random() * 30;
+                let r = minSize + Math.random() * (maxSize - minSize);
                 let b = this.createBallBody(rainX, y + (Math.random() * 300), r, username);
                 Composite.add(this.engine.engine.world, b);
             }, i * 50);
@@ -202,9 +246,10 @@ export class BallpitTheme {
         } else {
             const radius = customRadius;
             ball = this.createBallBody(x, y, radius, username);
+            // Only apply fading if explicitly requested (e.g. for specific bomb debris)
             if (isFading) {
-                ball.isSettledFading = true;
-                ball.flashTimer = performance.now() + (Math.random() * 8000);
+                ball.isFading = true; // Use active fading initially if requested
+                ball.flashTimer = performance.now();
             }
         }
 
@@ -316,23 +361,54 @@ export class BallpitTheme {
         const bodies = this.engine.Composite.allBodies(this.engine.engine.world);
         context.textAlign = 'center'; context.textBaseline = 'middle';
 
+        const fontFamily = this.getSetting('font_family', 'Barlow');
+        const textScaleMult = this.getSetting('text_scale_mult', 1.0);
+
         bodies.forEach(body => {
             if (body.username) {
                 // Fading Logic for rendering colors
+                // Only apply if body.isFading or body.isSettledFading is TRUE.
+                // Normal balls do not have these flags set anymore.
                 if (body.isFading || body.isSettledFading) {
                     const time = performance.now();
                     const cycleTime = body.isSettledFading ? 8000 : 6000;
                     const opacity = 0.5 + 0.5 * Math.sin((time - (body.flashTimer || 0)) * (2 * Math.PI / cycleTime));
-                    // Note: This relies on re-setting render.fillStyle every frame which is okay but heavy-ish.
-                    // Keeping simple port.
-                    // Actually, let's skip complex RGB parsing for now and just set global alpha if needed,
-                    // or assume colors are hex/rgb strings we can slice.
+                    // Simple approach: parse current fillStyle or just overlay.
+                    // Since fillStyle is usually a static color string here, we can assume it's set.
+                    // For now, we will just trust the user accepts the base color logic,
+                    // or ideally we would parse the RGB and apply the alpha.
+                    // Re-implementing basic RGB parse for the pulsing effect:
+                    if (body.render.fillStyle.startsWith('rgb')) {
+                        // Very rough parse to apply opacity
+                        const color = body.render.fillStyle;
+                        const rgb = color.match(/\d+/g);
+                        if (rgb && rgb.length >= 3) {
+                            body.render.fillStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${opacity})`;
+                        }
+                    }
                 }
 
-                // Text Rendering
+                // Text Rendering with Dynamic Fit
                 const radius = body.circleRadius || 20;
-                let fontSize = radius * 0.7;
-                context.font = `600 ${fontSize}px "Barlow", Arial, sans-serif`;
+                const availableWidth = radius * 1.8; // Roughly fit inside circle
+
+                // Base size calculation
+                let fontSize = radius * 0.7 * textScaleMult;
+
+                // Dynamic Fitting
+                context.font = `600 ${fontSize}px "${fontFamily}", Arial, sans-serif`;
+                let textWidth = context.measureText(body.username).width;
+
+                if (textWidth > availableWidth) {
+                    // Scale down
+                    const ratio = availableWidth / textWidth;
+                    fontSize = fontSize * ratio;
+                }
+
+                // Clamp minimum size to prevent invisible text
+                fontSize = Math.max(8, fontSize);
+
+                context.font = `600 ${fontSize}px "${fontFamily}", Arial, sans-serif`;
                 context.lineWidth = Math.max(2.5, fontSize * 0.08);
                 context.strokeStyle = `rgba(0, 0, 0, 1.0)`;
                 context.strokeText(body.username, body.position.x, body.position.y);
@@ -341,8 +417,8 @@ export class BallpitTheme {
 
                 // Labels (Top/Bottom)
                 if (body.bottomLabel) {
-                     const subSize = Math.max(10, radius * 0.25);
-                     context.font = `600 ${subSize}px "Barlow", Arial, sans-serif`;
+                     const subSize = Math.max(8, radius * 0.25 * textScaleMult);
+                     context.font = `600 ${subSize}px "${fontFamily}", Arial, sans-serif`;
                      context.fillText(body.bottomLabel, body.position.x, body.position.y + (radius * 0.4));
                 }
             }
