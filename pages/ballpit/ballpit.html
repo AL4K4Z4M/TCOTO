@@ -590,7 +590,12 @@
                 if (!eventName) return;
 
                 if (eventName === "OpenPit") openPit();
-                if (eventName === "SpawnBall") spawnEvent('normal', "Streamer", 30);
+                if (eventName === "SpawnBall") {
+                    const dropType = determineDropType();
+                    const radius = 15 + Math.random() * 70;
+                    const name = payload.data?.username || "Streamer";
+                    spawnEvent(dropType, name, radius);
+                }
             });
 
             // Expose for external calls
