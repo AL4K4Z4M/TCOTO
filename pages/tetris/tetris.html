@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Streamer.bot Tetris</title>
-    <!-- Google Fonts: Barlow SemiBold & Press Start 2P (Retro) -->
+    <!-- Google Fonts: Barlow -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@600&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;800&display=swap" rel="stylesheet">
     <!-- Streamer.bot Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@streamerbot/client/dist/streamerbot-client.js"></script>
     <style>
@@ -519,17 +519,18 @@
             if (!activePiece) spawnPiece();
         });
 
-        // --- EVENT LISTENER (FIXED: PERMISSIVE & SINGLE) ---
+        // --- EVENT LISTENER (STRICT COMPLIANCE) ---
         client.on('General.Custom', (payload) => {
-            // Convert the entire payload to a string to catch any format
-            const raw = JSON.stringify(payload);
+            // Strict check for eventName as per AGENTS.md
+            const eventName = payload.data?.eventName;
+            if (!eventName) return;
 
-            if (raw.includes("TetrisLeft")) playerMove(-1);
-            if (raw.includes("TetrisRight")) playerMove(1);
-            if (raw.includes("TetrisRotate")) playerRotate();
-            if (raw.includes("TetrisDown")) playerDrop();
+            if (eventName === "TetrisLeft") playerMove(-1);
+            if (eventName === "TetrisRight") playerMove(1);
+            if (eventName === "TetrisRotate") playerRotate();
+            if (eventName === "TetrisDown") playerDrop();
 
-            if (raw.includes("TetrisTest")) testTetris();
+            if (eventName === "TetrisTest") testTetris();
         });
         }
 

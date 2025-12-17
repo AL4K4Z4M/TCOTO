@@ -586,9 +586,11 @@
 
             // 4. CUSTOM EVENT
             if (client) client.on('General.Custom', (payload) => {
-                const raw = JSON.stringify(payload);
-                if (raw.includes("OpenPit")) openPit();
-                if (raw.includes("SpawnBall")) spawnEvent('normal', "Streamer", 30);
+                const eventName = payload.data?.eventName;
+                if (!eventName) return;
+
+                if (eventName === "OpenPit") openPit();
+                if (eventName === "SpawnBall") spawnEvent('normal', "Streamer", 30);
             });
 
             // Expose for external calls

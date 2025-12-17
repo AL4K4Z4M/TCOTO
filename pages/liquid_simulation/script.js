@@ -120,64 +120,75 @@ try {
             host: '127.0.0.1',
             port: 8080,
             endpoint: '/',
-            autoReconnect: true,
-            subscribe: '*', // Subscribe to everything to ensure Commands are caught
-            onData: (data) => {
-                handleStreamerBotData(data);
-            }
+            autoReconnect: true
         });
+
+        client.on('Connect', () => {
+            console.log('Connected to Streamer.bot');
+            client.subscribe({
+                "Twitch": [
+                    "Follow",
+                    "Cheer",
+                    "Raid",
+                    "Subscribe",
+                    "ReSubscribe",
+                    "GiftSubscription",
+                    "Subscription",
+                    "GiftSub",
+                    "Sub",
+                    "ChatMessage"
+                ],
+                "Command": ["Triggered"]
+            });
+        });
+
+        // 1. HIGH INTENSITY EVENTS (Subs, Cheers, Raids)
+        const handleHighIntensity = () => {
+            applyProfile('HIGH');
+            // Large Splash
+            multipleSplats(parseInt(Math.random() * 10) + 10);
+        };
+
+        client.on('Twitch.Subscribe', handleHighIntensity);
+        client.on('Twitch.ReSubscribe', handleHighIntensity);
+        client.on('Twitch.GiftSubscription', handleHighIntensity);
+        client.on('Twitch.Subscription', handleHighIntensity);
+        client.on('Twitch.GiftSub', handleHighIntensity);
+        client.on('Twitch.Sub', handleHighIntensity);
+        client.on('Twitch.Cheer', handleHighIntensity);
+        client.on('Twitch.Raid', handleHighIntensity);
+
+        // 2. LOW INTENSITY EVENTS (Follows)
+        client.on('Twitch.Follow', () => {
+            applyProfile('LOW');
+            // Medium Splash
+            multipleSplats(parseInt(Math.random() * 5) + 3);
+        });
+
+        // 3. COMMANDS (Low Intensity)
+        const handleCommandSplash = () => {
+            applyProfile('LOW');
+            multipleSplats(parseInt(Math.random() * 5) + 5);
+        };
+
+        // Native Action
+        client.on('Command', (payload) => {
+            const cmd = payload.data?.command?.toLowerCase();
+            if (cmd === '!splash') handleCommandSplash();
+        });
+
+        // Chat Fallback
+        client.on('Twitch.ChatMessage', (payload) => {
+            const msgObj = payload.data?.message;
+            const msg = (msgObj?.message || msgObj || "").toString();
+            if (msg.trim().toLowerCase().startsWith('!splash')) handleCommandSplash();
+        });
+
     } else {
         console.warn('StreamerbotClient is undefined. Offline mode active.');
     }
 } catch (error) {
     console.error('Failed to initialize StreamerbotClient:', error);
-}
-
-function handleStreamerBotData(payload) {
-    const event = payload.event || {};
-    const source = event.source || "";
-    const type = event.type || "";
-
-    // 1. HIGH INTENSITY EVENTS (Subs, Cheers, Raids)
-    const isSub = ['Twitch.Subscribe', 'Twitch.ReSubscribe', 'Twitch.GiftSubscription', 'Twitch.Subscription', 'Twitch.GiftSub', 'Twitch.Sub'].includes(source + '.' + type);
-    const isCheer = (source === 'Twitch' && type === 'Cheer');
-    const isRaid = (source === 'Twitch' && type === 'Raid');
-
-    if (isSub || isCheer || isRaid) {
-        applyProfile('HIGH');
-        // Large Splash
-        multipleSplats(parseInt(Math.random() * 10) + 10);
-        return;
-    }
-
-    // 2. LOW INTENSITY EVENTS (Follows)
-    if (source === 'Twitch' && type === 'Follow') {
-        applyProfile('LOW');
-        // Medium Splash
-        multipleSplats(parseInt(Math.random() * 5) + 3);
-        return;
-    }
-
-    // 3. COMMANDS (Low Intensity)
-    let isCommand = false;
-
-    // Native Action
-    if (source === 'Command') {
-        const cmd = payload.data.command.toLowerCase();
-        if (cmd === '!splash') isCommand = true;
-    }
-
-    // Chat Fallback
-    if (source === 'Twitch' && type === 'ChatMessage') {
-        const msgObj = payload.data.message;
-        const msg = (msgObj.message || msgObj || "").toString();
-        if (msg.trim().toLowerCase().startsWith('!splash')) isCommand = true;
-    }
-
-    if (isCommand) {
-        applyProfile('LOW');
-        multipleSplats(parseInt(Math.random() * 5) + 5);
-    }
 }
 
 // --------------------------------
