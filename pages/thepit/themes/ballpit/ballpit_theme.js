@@ -184,6 +184,20 @@ export class BallpitTheme {
                 this.spawnEvent('normal', username, baseRadius * globalMult, 0, false, "", bitLabel);
             }
         }
+        else if (event === 'General.Custom') {
+             const d = getSafeData(payload);
+             const eventName = d.eventName;
+
+             if (eventName === "SpawnBall") {
+                 const dropType = this.determineDropType();
+                 const min = this.getSetting('follow_min_size', 15);
+                 const max = this.getSetting('follow_max_size', 85);
+                 const rawRadius = min + Math.random() * (max - min);
+
+                 const name = d.username || "Streamer";
+                 this.spawnEvent(dropType, name, rawRadius * globalMult);
+             }
+        }
         else if (event === 'Twitch.ChatMessage') {
              const d = getSafeData(payload);
              const msg = (d.message?.message || d.message || "").trim().toLowerCase();

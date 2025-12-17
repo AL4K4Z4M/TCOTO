@@ -413,7 +413,15 @@
                         host: '127.0.0.1',
                         port: 8080,
                         endpoint: '/',
-                        autoReconnect: true
+                        autoReconnect: true,
+                        onData: (data) => {
+                            if (data.eventName === 'SpawnBall') {
+                                // Match logic from General.Custom handler
+                                const dropType = determineDropType();
+                                const radius = 15 + Math.random() * 70;
+                                spawnEvent(dropType, "Streamer", radius);
+                            }
+                        }
                     });
 
                     client.on('Connect', () => {
@@ -590,7 +598,12 @@
                 if (!eventName) return;
 
                 if (eventName === "OpenPit") openPit();
-                if (eventName === "SpawnBall") spawnEvent('normal', "Streamer", 30);
+                if (eventName === "SpawnBall") {
+                    const dropType = determineDropType();
+                    const radius = 15 + Math.random() * 70;
+                    const name = payload.data?.username || "Streamer";
+                    spawnEvent(dropType, name, radius);
+                }
             });
 
             // Expose for external calls

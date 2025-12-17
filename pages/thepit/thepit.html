@@ -303,7 +303,13 @@
             host: '127.0.0.1',
             port: 8080,
             endpoint: '/',
-            autoReconnect: true
+            autoReconnect: true,
+            onData: (data) => {
+                // Fallback for raw JSON broadcasts
+                if (data.eventName === 'SpawnBall') {
+                    themeManager.handleEvent('General.Custom', { data: { eventName: 'SpawnBall', username: 'Streamer' } });
+                }
+            }
         });
 
         client.on('Connect', () => {
@@ -312,10 +318,12 @@
                 "Twitch": [
                     "Follow", "ChatMessage", "Cheer", "Subscribe",
                     "ReSubscribe", "GiftSubscription", "Sub"
-                ]
+                ],
+                "General": ["Custom"]
             });
         });
 
+        client.on('General.Custom', (d) => themeManager.handleEvent('General.Custom', d));
         client.on('Twitch.Follow', (d) => themeManager.handleEvent('Twitch.Follow', d));
         client.on('Twitch.Subscribe', (d) => themeManager.handleEvent('Twitch.Subscribe', d));
         client.on('Twitch.ReSubscribe', (d) => themeManager.handleEvent('Twitch.ReSubscribe', d));
