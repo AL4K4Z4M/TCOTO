@@ -580,8 +580,10 @@
                 });
 
                 client.on('General.Custom', (payload) => {
-                    const raw = JSON.stringify(payload);
-                    if (raw.includes("OpenPit")) window.openPit();
+                    const eventName = payload.data?.eventName;
+                    if (!eventName) return;
+
+                    if (eventName === "OpenPit") window.openPit();
                 });
             }
 
